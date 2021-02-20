@@ -44,9 +44,5 @@ class ECPLiBase(object):
     def ul(self):
         raise NotImplementedError("Must be implemented in derived classes")
 
-    @property
-    def ll(self):
-        raise NotImplementedError("Must be implemented in derived classes")
-
     def copy(self):
         return deepcopy(self)

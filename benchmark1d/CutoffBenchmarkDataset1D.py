@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--n_benchmarks",
                         type=int,
-                        help="Number of benchmark datasets per true parameter set",
+                        help="Number of benchmark datasets per true parameter",
                         dest="NBENCH",
                         required=True)
 
@@ -130,7 +130,8 @@ if __name__ == "__main__":
     parser.add_argument("--irf_file",
                         type=str,
                         help="CTA IRF file",
-                        dest="IRF")
+                        dest="IRF",
+                        required=True)
 
     options = parser.parse_args()
 
@@ -145,23 +146,28 @@ if __name__ == "__main__":
 
     n_benchmarks = options.NBENCH
 
-    ecut_true_list = np.logspace(np.log10(5.), np.log10(1000.), 20) * u.Unit("TeV")
+    ecut_true_list = np.logspace(np.log10(5.),
+                                 np.log10(1000.), 20) * u.Unit("TeV")
     index_true = options.INDEX
     normalization_true = options.NORM * mCrab
 
     for ecut_true in ecut_true_list:
         lambda_true = 1 / ecut_true
         dataset_parameter = {"name": "CutoffBenchmarkDataset1D",
-                             "true_parameter": {"lambda_true": lambda_true,
-                                                "index_true": index_true,
-                                                "normalization_true": normalization_true}}
+                             "true_parameter": 
+                                {"lambda_true": lambda_true,
+                                 "index_true": index_true,
+                                 "normalization_true": normalization_true}}
 
         for _ in range(n_benchmarks):
-            dataset = CutoffBenchmarkDataset1D(irf_file=options.IRF, **dataset_parameter["true_parameter"])
+            dataset = CutoffBenchmarkDataset1D(irf_file=options.IRF,
+                                    **dataset_parameter["true_parameter"])
             result = {"dataset": dataset}
             result["dataset_parameter"] = dataset_parameter
             result["data"] = dataset.data()
 
             random_string = "".join(random.choice(letters) for _ in range(10))
-            with open(outdir + "benchmark_" + random_string + ".pickle", "wb") as fout:
+
+            _infile = outdir + "benchmark_" + random_string + ".pickle"
+            with open(_infile, "wb") as fout:
                 pickle.dump(result, fout)

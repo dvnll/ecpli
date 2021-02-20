@@ -1,6 +1,6 @@
-from ecpli.MCMC import UniformEnsembleMCMC, WeakPriorEnsembleMCMC
-from Bootstrap import BestFitParametricBootstrap, PoissonParametricBootstrap, NonParametricBootstrap
-from ProfileLikelihoodRatio import ConsstrainedLR, UnconstrainedLR
+from ecpli.MCMC import UniformPriorEnsembleMCMC, WeakPriorEnsembleMCMC
+from ecpli.Bootstrap import BestFitParametricBootstrap, PoissonParametricBootstrap, NonParametricBootstrap
+from ecpli.ProfileLikelihoodRatio import ConstrainedLR, UnconstrainedLR
 
 
 VERSION = (0, 1, 0)
