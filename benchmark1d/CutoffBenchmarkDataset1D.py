@@ -133,21 +133,48 @@ if __name__ == "__main__":
                         dest="IRF",
                         required=True)
 
+    parser.add_argument("--ecut_true_min",
+                        type=float,
+                        help="Minimal cutoff energy in TeV",
+                        dest="ECUT_MIN",
+                        default=5.)
+
+    parser.add_argument("--ecut_true_max",
+                        type=float,
+                        help="Maximal cutoff energy in TeV",
+                        dest="ECUT_MAX",
+                        default=1000.)
+
+    parser.add_argument("--n_ecut",
+                        type=int,
+                        help="Number of cutoff energies.",
+                        dest="N_ECUT",
+                        default=20)
+
     options = parser.parse_args()
+
+    if options.ECUT_MAX < options.ECUT_MIN:
+        info = "Maximal cutoff energy must be "
+        info += "larger than minimal cutoff energy."
+        raise RuntimeError(info)
+    if options.N_ECUT <= 0:
+        info = "Number of cutoff energies must be positive."
+        raise RuntimeError(info)
 
     outdir = options.OUTDIR
     if outdir[-1] != "/":
         outdir += "/"
 
     if os.path.isdir(outdir):
-        raise RuntimeError(outdir + " already exists")
+        raise OSError(outdir + " already exists")
 
     os.mkdir(outdir)
 
     n_benchmarks = options.NBENCH
 
-    ecut_true_list = np.logspace(np.log10(5.),
-                                 np.log10(1000.), 20) * u.Unit("TeV")
+    ecut_true_list = np.logspace(np.log10(options.ECUT_MIN),
+                                 np.log10(options.ECUT_MAX),
+                                 options.N_ECUT) * u.Unit("TeV")
     index_true = options.INDEX
     normalization_true = options.NORM * mCrab
 
