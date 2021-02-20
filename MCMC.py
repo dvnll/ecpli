@@ -456,34 +456,6 @@ class _EnsembleMCMCBase(ECPLiBase):
 
         return h.ax_joint
 
-class UniformPriorEnsembleMCMC2(_EnsembleMCMCBase):
-
-    def __init__(self, limit_target, data, models, CL, verbose,
-                 n_correlation):
-
-        super().__init__(limit_target, data, models, CL,
-                         verbose, n_correlation)
-        
-        for par in self.dataset.parameters.free_parameters:
-            if par.name == "lambda_":
-                par.min = -1.
-                par.max = 1.
-            elif par.name == "index":
-                par.min = 1.
-                par.max = 4.
-            elif par.name == "amplitude":
-                par.max = 1.e-7
-                par.min = 1.e-16
-            else:
-                print("Freezing " + par.name)
-                par.frozen = True
-
-    def _prior(self):
-        logprob = 0
-        for par in self.dataset.models.parameters.free_parameters:
-            logprob += uniform_prior(par.value, par.min, par.max)
-        return logprob
-
 
 class UniformPriorEnsembleMCMC(_EnsembleMCMCBase):
 
@@ -495,7 +467,6 @@ class UniformPriorEnsembleMCMC(_EnsembleMCMCBase):
 
         for par in self.dataset.parameters.free_parameters:
             if par.name == "lambda_":
-                #par.min = 1. / 1.e6
                 par.min = 0.
                 par.max = 1.
             elif par.name == "index":
@@ -525,7 +496,7 @@ class WeakPriorEnsembleMCMC(_EnsembleMCMCBase):
         # Fixing only for the ML fit
         for par in self.dataset.parameters.free_parameters:
             if par.name == "lambda_":
-                par.min = 1. / 1.e6
+                par.min = 0
                 par.max = 1.
             elif par.name == "index":
                 par.min = 1.
