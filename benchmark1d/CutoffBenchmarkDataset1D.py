@@ -18,7 +18,14 @@ class CutoffBenchmarkDataset1D(object):
     """Dataset to benchmark 1-dimensional source analyses.
 
         Attributes:
+            lambda_true: True inverse energy cutoff.
+            index_true: True powerlaw index.
+            normalization_true: True flux normalization.
+            energy_axis: Energy axis used for reconstruction.
+            on_region: Signal region.
             true_model: True source model.
+            obs: Observation position. The telescope is assumed to
+                 point directly towards the source.
             fit_start_model: Collection of start models (type Models) to
                              initialize the likelihood fit.
     """
