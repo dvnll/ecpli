@@ -109,6 +109,9 @@ class CutoffBenchmarkDataset1D(object):
 if __name__ == "__main__":
     """Main method to create a set of 1-dimensional Monte-Carlo 
        data (SpectrumDataset) for a given set of true source parameters.
+       Each Monte-Carlo source data is saved into a pickle-file. This file
+       is to be analyzed with runecpli.py with regard to the limit on the
+       exponential cutoff.
     """
 
     import argparse
