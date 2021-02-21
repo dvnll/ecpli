@@ -1,6 +1,7 @@
 import numpy as np
 
-from gammapy.modeling import Fit
+from gammapy.modeling import Fit, models
+import gammapy.modeling as modeling
 
 from scipy.optimize import brentq, fsolve
 
@@ -8,51 +9,67 @@ import scipy.stats as stats
 
 import random
 import string
+from typing import List
 
-import matplotlib.pyplot as plt
-
-from ecpli.ECPLiBase import ECPLiBase
-
+from ecpli.ECPLiBase import ECPLiBase, LimitTarget
 
 
-class _MLFitPool(object):
+class _ProfileLRPool(object):
+    """Helper class to contain the profile likelihood values
+       and their corresponding models.
 
-    def __init__(self, max_size):
-        self._lambda_list = []
+       Attributes:
+        max_size: Maximal size of the pool.
+        full: True if the maximum size of the pool is reached.
+        parameter_list: List of parameters for the profile.
+        likelihood_list: List of maximum profile likelihood values.
+
+       Todo:
+        This class is useful to find a good start model for fits and
+        to perform plots of the profile likelihood function. However,
+        it is very memory inefficient. One way to improve it would be
+        to not save the complete list of models but only their parameters. 
+    """
+
+    def __init__(self, max_size: int):
+        self._parameter_list = []
         self._likelihood_list = []
         self._model_list = []
-        self._max_size = max_size
+        self.max_size = max_size
 
     @property
-    def full(self):
-        return (self.entries >= self._max_size)
+    def full(self) -> bool:
+        return (len(self) >= self.max_size)
 
-    @property
-    def entries(self):
-        return len(self._lambda_list)
+    def __len__(self) -> int:
+        return len(self._parameter_list)
 
-    def append(self, lambda_best, dataset):
-
-        if lambda_best in self.lambda_list:
+    def append(self, parameter_best: float, dataset: modeling.Dataset):
+        if parameter_best in self.parameter_list:
             return
 
-        self._lambda_list.append(lambda_best)
+        self._parameter_list.append(parameter_best)
         self._likelihood_list.append(dataset.stat_sum())
         self._model_list.append(dataset.models)
 
     @property
-    def _index_list(self):
-        return np.argsort(self._lambda_list)
+    def _index_list(self) -> list:
+        return np.argsort(self._parameter_list)
 
     @property
-    def lambda_list(self):
-        return np.array(self._lambda_list)[self._index_list]
+    def parameter_list(self) -> list:
+        return np.array(self._parameter_list)[self._index_list]
 
     @property
-    def likelihood_list(self):
+    def likelihood_list(self) -> list:
         return np.array(self._likelihood_list)[self._index_list]
 
-    def ml_model(self):
+    def ml_model(self) -> List[models.SkyModel]:
+        """Returns the list of Skymodels which maximize the likelihood
+           function (=minimize the negative loglikeihood) along the
+           available parameter profile.
+        """
+
         ml_index = np.argmin(self._likelihood_list)
         ml_model = self._model_list[ml_index]
         temp_model = []
@@ -60,39 +77,50 @@ class _MLFitPool(object):
         random_string = "".join(random.choice(letters) for _ in range(10))
 
         for model in ml_model:
-            name = model.name.split("_GE_")[0]
-            temp_model.append(model.copy(name=name + "_GE_" + random_string))
+            name = model.name.split("_CACHE_")[0]
+            temp_model.append(model.copy(name=name + "_CACHE_" + random_string))
 
         return temp_model
 
-    def closest_model(self, lambda_):
-        best_index = np.argmin(np.abs(np.array(self._lambda_list) - lambda_))
+    def closest_model(self, parameter: float) -> List[models.SkyModel]:
+        """Returns the list of SkyModels in the pool which is optimized for the
+           closest available profile parameter value in the pool.
+           This is very useful to initialize ML fits for ugly profile
+           likelihood functions.
+
+           Args:
+            parameter: Profile parameter for which the closest model is
+                     requested.
+        """
+
+        best_index = np.argmin(
+                        np.abs(np.array(self._parameter_list) - parameter))
         closest_model = self._model_list[best_index]
 
         letters = string.ascii_uppercase + string.digits
         random_string = "".join(random.choice(letters) for _ in range(10))
         temp_model = []
         for model in closest_model:
-            name = model.name.split("_GE_")[0]
-            temp_model.append(model.copy(name=name + "_GE_" + random_string))
+            name = model.name.split("_CACHE_")[0]
+            temp_model.append(model.copy(name=name + "_CACHE_" + random_string))
 
         closest_model = temp_model
-
         return closest_model
 
 
 class _LRBase(ECPLiBase):
 
-    def __init__(self, limit_target, data, models, CL, 
-                 naima=False,
-                 lambda_min=1./1e8, lambda_max=1./0.05):
+    def __init__(self, limit_target: LimitTarget,
+                 data: modeling.Dataset,
+                 models: models.Models,
+                 CL: float,
+                 fit_backend="minuit"):
 
-        super().__init__(limit_target, data, models, CL)
+        super().__init__(limit_target, data, models, CL, fit_backend)
         """
         ecpl_model_name is the name of the model in models for which
         a limit on the lambda parameter is to be derived
         """
-        self.naima = naima
         letters = string.ascii_uppercase + string.digits
         random_string = "".join(random.choice(letters) for _ in range(10))
         self.dataset = data
@@ -100,16 +128,14 @@ class _LRBase(ECPLiBase):
         self.ecpl_model_name = limit_target.model.name
 
         self.verbose = False #True
-        self.lambda_min = lambda_min
-        self.lambda_max = lambda_max
         self._n_fits = 0
 
         max_ml_pool_entries = 20  # 100 for plotting
-        self._ml_fit_pool = _MLFitPool(max_ml_pool_entries)
+        self._ml_fit_pool = _ProfileLRPool(max_ml_pool_entries)
 
-        while self._ml_fit_pool.entries < max_ml_pool_entries:
+        while len(self._ml_fit_pool) < max_ml_pool_entries:
             info = "Filling ML fit pool: Current size: "
-            info += str(self._ml_fit_pool.entries) + "/"
+            info += str(len(self._ml_fit_pool)) + "/"
             info += str(max_ml_pool_entries)
             print(info)
 
@@ -128,7 +154,7 @@ class _LRBase(ECPLiBase):
 
         dataset = self.dataset  # .copy("dscopy_GE_" + random_string)
 
-        if self._ml_fit_pool.entries == 0:
+        if len(self._ml_fit_pool) == 0:
             random_string = "".join(random.choice(letters) for _ in range(10))
             dataset.models = [model.copy(name=model.name + "_GE_" + random_string) for model in self.model]
 
@@ -264,6 +290,17 @@ class _LRBase(ECPLiBase):
 
     @property
     def _ul(self):
+        """Calculate an upper limit. The method has two steps:
+           First: Try to find a solution to
+                  ProfileLikelihood(lambda)=critical_value(CL)
+                  for the parameter in [ml_fit_parameter, test_value]
+                  with the brentq method.
+                  In an optimal world, one could just use
+                  a very large test_value. But this leads to frequent
+                  numerical problems. So, a range of test_values is tried
+                  until a solution is found.
+           Second: If no solution is found with brentq, fsolve is used.
+        """
 
         critical_value = self.critical_value
 
@@ -278,9 +315,9 @@ class _LRBase(ECPLiBase):
 
             return ts - critical_value
 
-        lambda_max_list = [1./100., 1./50., 1./10., 1./5, 1./1., 1./0.5, 1./0.1, self.lambda_max]
-        if self.naima:
-            lambda_max_list = [lambda_max / 10. for lambda_max in lambda_max_list]
+        lambda_max_list = np.logspace(np.log10(ml_fit_lambda),
+                                      np.log10(self.limit_target.parmax),
+                                      10)
 
         limit_found = False
         for lambda_max in lambda_max_list:
@@ -292,7 +329,8 @@ class _LRBase(ECPLiBase):
             except ValueError as e:
                 info = "Brentq solver for lambda_max="
                 info += str(lambda_max) + " failed: "
-                info += str(e) + " -> This is usually not a problem"
+                info += str(e) + " -> This is usually not a problem "
+                info += "because other lambda_max from the list will work."
                 if self.verbose:
                     print(info)
                 continue
@@ -313,20 +351,17 @@ class _LRBase(ECPLiBase):
                 if self.verbose and (ier == 1):
                     print("fsolve succeeded: " + str(ul))
                 if ier != 1:
-                    info = "Couldn't find upper limit. Using lambda_min"
+                    info = "Couldn't find upper limit. Using minimal parameter"
                     info += " as degenerate covering solution."
                     if self.verbose:
                         print(info)
 
-                    return self.lambda_min
+                    return self.limit_target.parmin
 
             except Exception as e:
                 info = "Couldn't find upper limit " + str(e)
                 raise RuntimeError(info)
             ul = np.max(ul)
-
-            if self.verbose:
-                print("helper_func at solution: " + str(helper_func(ul)))
 
         return ul
 
@@ -388,11 +423,9 @@ class _LRBase(ECPLiBase):
 
 
 class ConstrainedLR(_LRBase):
-    def __init__(self, limit_target, data, models, CL,
-                 naima=False,
-                 lambda_min=1./1e8, lambda_max=1./0.05):
+    def __init__(self, limit_target, data, models, CL):
 
-        super().__init__(limit_target, data, models, CL, naima)
+        super().__init__(limit_target, data, models, CL)
 
     @property
     def critical_value(self):
@@ -401,10 +434,9 @@ class ConstrainedLR(_LRBase):
     @property
     def ul(self):
         ul = self._ul
-        if ul < self.lambda_min:
+        if ul < self.limit_target.parmin:
             info = "Upper limit smaller than expected"
             raise RuntimeError(info)
-
         return ul
     
     def ml_fit_lambda(self):
@@ -424,7 +456,7 @@ class ConstrainedLR(_LRBase):
                 print("Setting ML fit lambda=0")
             ml_fit_lambda = 0.
 
-        if ml_fit_lambda > self.lambda_max:
+        if ml_fit_lambda > self.limit_target.parmax:
             if self.verbose:
                 info = "ml_fit_lambda=" + str(ml_fit_lambda)
                 info += " out of range: Increase lambda_max"
@@ -436,8 +468,8 @@ class ConstrainedLR(_LRBase):
 
 
 class UnconstrainedLR(_LRBase):
-    def __init__(self, limit_target, data, models, CL, naima=False):
-        super().__init__(limit_target, data, models, CL, naima=False)
+    def __init__(self, limit_target, data, models, CL):
+        super().__init__(limit_target, data, models, CL)
 
     @property
     def critical_value(self):
