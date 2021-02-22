@@ -3,6 +3,11 @@ from gammapy.modeling import Dataset
 import astropy.units as u
 from abc import ABC, abstractmethod
 from copy import deepcopy
+import logging
+
+
+logger = logging.getLogger()
+logging.basicConfig(level=logging.INFO)
 
 
 def _mcrab():
@@ -67,13 +72,14 @@ class ECPLiBase(ABC):
                  data: Dataset,
                  models: Models,
                  CL: float,
-                 fit_backend="minuit"):
+                 fit_backend : str ="minuit"):
 
         self.limit_target = limit_target
         self.data = data
         self.models = models
         self.fit_backend = fit_backend
         self.CL = CL
+        self._logger = logging.getLogger(__name__)
 
         if limit_target.model.name not in models.names:
             info = "Cannot find model " + limit_target.model.name

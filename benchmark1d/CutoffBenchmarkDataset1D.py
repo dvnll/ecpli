@@ -83,8 +83,8 @@ class CutoffBenchmarkDataset1D(object):
     def fit_start_model(self) -> Models:
 
         model_fit = ExpCutoffPowerLawSpectralModel(
-                index=2.2,
-                amplitude=1.3e-12 * u.Unit("cm-2 s-1 TeV-1"),
+                index=0.9 * self.index_true,#2.2,
+                amplitude=self.normalization_true / 2.,#100 * mCrab,#1.3e-12 * u.Unit("cm-2 s-1 TeV-1"),
                 lambda_=1./40 * u.Unit("TeV-1"),
                 reference=1 * u.TeV
             )

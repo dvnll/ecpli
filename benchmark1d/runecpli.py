@@ -4,6 +4,11 @@ import ecpli
 from ecpli.benchmark1d.CutoffBenchmarkDataset1D import CutoffBenchmarkDataset1D
 import json
 from ecpli.ECPLiBase import LimitTarget
+import logging
+
+
+logger = logging.getLogger()
+logging.basicConfig(level=logging.INFO)
 
 
 parser = argparse.ArgumentParser()
@@ -33,16 +38,20 @@ parser.add_argument("--outfile",
                     dest="OUTFILE",
                     default=None)
 
+parser.add_argument("--debug",
+                    help="Enable debugging messages",
+                    dest="DEBUG", action="store_true")
 
 options = parser.parse_args()
+
+if options.DEBUG:
+    logging.getLogger().setLevel(level=logging.DEBUG)
+
 
 with open(options.CONFIG, "r") as fin:
     config = json.load(fin)
 
-print(config)
-
 method_name_list = list(config["method_dict"].keys())
-print(method_name_list)
 
 infile = options.INFILE
 outfile = options.OUTFILE
@@ -54,8 +63,6 @@ if not infile.endswith(".pickle"):
 if outfile is None:
     outfile = infile.replace(".pickle",
                              "_limit_" + "_".join(method_name_list) + ".pickle")
-
-print(outfile)
 
 with open(infile, "rb") as fin:
     dataset = pickle.load(fin)
