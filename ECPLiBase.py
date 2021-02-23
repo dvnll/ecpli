@@ -62,8 +62,6 @@ class ECPLiBase(ABC):
                   or a SpectrumDataset (1d-analysis).
             models: Collection of models used to describe the data.
             CL: Confidence level on which to work.
-            fit_backend: Backend used for the likelihood maximization,
-                         e.g.minuit
             ul: Upper limit on the parameter speficied by limit_target at the
                 confidence level given in the class constructor.
     """
@@ -71,13 +69,12 @@ class ECPLiBase(ABC):
                  limit_target: LimitTarget,
                  data: Dataset,
                  models: Models,
-                 CL: float,
-                 fit_backend : str ="minuit"):
+                 CL: float):
 
         self.limit_target = limit_target
         self.data = data
+        self.data.models = None
         self.models = models
-        self.fit_backend = fit_backend
         self.CL = CL
         self._logger = logging.getLogger(__name__)
 

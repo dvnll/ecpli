@@ -72,7 +72,7 @@ for method_name in method_name_list:
 
     limit_target = LimitTarget(model=dataset["dataset"].fit_start_model[0],
                                parameter_name="lambda_",
-                               parmin=1/1e8,
+                               parmin=0.,
                                parmax=1./0.05)
 
     arg_dict = {"limit_target": limit_target,

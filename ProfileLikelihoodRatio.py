@@ -3,11 +3,11 @@ import numpy as np
 import gammapy.modeling as modeling
 
 from scipy.optimize import brentq, fsolve
-
 import scipy.stats as stats
 
 import random
 import string
+
 from typing import List
 
 from ecpli.ECPLiBase import ECPLiBase, LimitTarget
@@ -43,24 +43,30 @@ class _ProfileLRPool(object):
     def __len__(self) -> int:
         return len(self._parameter_list)
 
-    def append(self, parameter_best: float, dataset: modeling.Dataset):
-        if parameter_best in self.parameter_list:
+    def append(self, parameter: float, dataset: modeling.Dataset) -> None:
+        """Appends the profiled fit model and the parameter to the pool.
+        
+           Args:
+            parameter: Fixed profile parameter.
+            dataset: Optimized dataset for the given parameter.
+        """
+        if parameter in self.parameter_list:
             return
 
-        self._parameter_list.append(parameter_best)
+        self._parameter_list.append(parameter)
         self._likelihood_list.append(dataset.stat_sum())
         self._model_list.append(dataset.models)
 
     @property
-    def _index_list(self) -> list:
+    def _index_list(self) -> List[int]:
         return np.argsort(self._parameter_list)
 
     @property
-    def parameter_list(self) -> list:
+    def parameter_list(self) -> List[str]:
         return np.array(self._parameter_list)[self._index_list]
 
     @property
-    def likelihood_list(self) -> list:
+    def likelihood_list(self) -> List[float]:
         return np.array(self._likelihood_list)[self._index_list]
 
     def ml_model(self) -> modeling.models.Models:
@@ -108,57 +114,57 @@ class _ProfileLRPool(object):
 
 
 class _LRBase(ECPLiBase):
+    """Base class to invert the profile likelihood ratio test to derive 
+       limits on the limit_target methods to.
 
+       Attributes:
+        fit_config: Dictionary which describes the parameters of the 
+                    likelihood fit optimization.
+        data: Dataset from which a limit is to be derived.
+        model: Likelihood fit optimization start model.
+        n_fits_performed: Number of fits performed in this instance.
+    """
+    
     def __init__(self, limit_target: LimitTarget,
                  data: modeling.Dataset,
                  models: modeling.models.Models,
                  CL: float,
-                 fit_backend="minuit",
+                 fit_config : dict,
                  max_pool_entries=20):
 
-        super().__init__(limit_target, data, models, CL, fit_backend)
+        super().__init__(limit_target, data, models, CL)
         
-        letters = string.ascii_uppercase + string.digits
-        random_string = "".join(random.choice(letters) for _ in range(10))
-        self.dataset = data
-        def initialize_fitstart_model():
-            letters = string.ascii_uppercase + string.digits
-            
-            random_string = "".join(random.choice(letters) for _ in range(10))
-            model_copy_list : List[modeling.SkyModel] = []
-            for model in models:
-                original_model_name = model.name.split("_A")[0]
-                new_model_name = original_model_name + "_A_" + random_string
-                model_copy = model.copy(name=new_model_name)
-                model_copy_list.append(model_copy)
-
-            return modeling.models.Models(model_copy_list)
-
-        self.model = initialize_fitstart_model()
-
         self._n_fits = 0
-        self._ml_fit_pool = _ProfileLRPool(max_pool_entries)
+        self.fit_config = fit_config
+        self._fitstart_model = models
 
-        """ 
-        for lambda_ in np.logspace(np.log10(self.limit_target.parmin),
-                                   np.log10(self.limit_target.parmax),
-                                   max_pool_entries):
+        def initialize_lr_pool() -> None:
+            """Initializes the profile likelihood lookup pool and fill it.
+            """
+            self._ml_fit_pool = _ProfileLRPool(max_pool_entries)
+
+            for parameter in np.linspace(self.limit_target.parmin,
+                                         self.limit_target.parmax,
+                                         max_pool_entries):
+ 
+                info = "Filling ML fit pool: Current size: "
+                info += str(len(self._ml_fit_pool)) + "/"
+                info += str(max_pool_entries)
+                self._logger.debug(info)
+
+                self.fit(parameter_value=parameter)
+        
+        initialize_lr_pool()
+
+    def _fitstart_model_copy(self) -> modeling.models.Model:
+        """Returns a copy of self._fitstart_model with new random names for the
+           components.
         """
-        while len(self._ml_fit_pool) < max_pool_entries:
-            info = "Filling ML fit pool: Current size: "
-            info += str(len(self._ml_fit_pool)) + "/"
-            info += str(max_pool_entries)
-            self._logger.debug(info)
-
-            lambda_ = stats.gamma.rvs(a=1.1, scale=1./(5. * 1.1), size=1)[0]
-            self.fit(lambda_=lambda_)
-
-    def _fitstart_model_copy(self):
         letters = string.ascii_uppercase + string.digits
             
         random_string = "".join(random.choice(letters) for _ in range(10))
         model_copy_list : List[modeling.SkyModel] = []
-        for model in self.model:
+        for model in self._fitstart_model:
             original_model_name = model.name.split("_A")[0]
             new_model_name = original_model_name + "_A_" + random_string
             model_copy = model.copy(name=new_model_name)
@@ -166,30 +172,41 @@ class _LRBase(ECPLiBase):
 
         return modeling.models.Models(model_copy_list)
 
-    def fit(self, lambda_=None):
+    def fit(self, parameter_value=None) -> (float, float):
+        """Performs the likelihood optimization.
+
+           Args:
+            parameter_value: Limit target parameter value.
+                             If None: Keep limit target parameter free in fit.
+                             If fixed to a float: Fix limit target parameter to
+                             the given value in the likelihood fit.
+           Returns: (best_fit_parameter,
+                     likelihood value at best fit parameter)
+        """
+
         self._n_fits += 1
 
-        fit_parameters = {"n_repeat_fit_max": 3,
-                          "print_level": 0,
-                          "tolerance": 3.0,
-                          "strategy": 2,
-                          "backend": self.fit_backend}
-        
-
-        def initialize_dataset_fit_model():
-            """Puts the right fit start model in place in the dataset.
+        def initialize_dataset_fit_model() -> None:
+            """Puts the fit-start model in place in the dataset.
+               If the ML fit pool is unfilled, the right fit-start model is
+               a fresh copy of the fit-start model defined in the constructor.
+               If no profile likelihood is requested, the right fit-start model
+               is the ML fit model. If a profile likelihood model is requested,
+               the right fit-start model is the model corresponding to the
+               closest parameter in the ML fit pool.  
             """
-            dataset = self.dataset
+            dataset = self.data
             if len(self._ml_fit_pool) == 0:
                 dataset.models = self._fitstart_model_copy()
             else:
-                if lambda_ is None:
+                if parameter_value is None:
                     dataset.models = self._ml_fit_pool.ml_model()
                 else:
-                    dataset.models = self._ml_fit_pool.closest_model(lambda_)
+                    dataset.models = self._ml_fit_pool.closest_model(
+                                            parameter_value)
             return dataset
 
-        def freeze_target_parameter(frozen: bool):
+        def freeze_target_parameter(frozen: bool) -> None:
             """Controls whether the target parameter is frozen in the fit.
 
             Args:
@@ -204,19 +221,20 @@ class _LRBase(ECPLiBase):
                     if parameter.name == self.limit_target.parameter_name:
                         if frozen:
                             parameter.frozen = True
-                            parameter.value = lambda_
+                            parameter.value = parameter_value
                         else:
                             parameter.frozen = False
                         break
 
-        def show_fit_dataset_debug_information():
+        def show_fit_dataset_debug_information() -> None:
             """Prints debug information if in corresponding log-level.
             """
             self._logger.debug("---------------------------------------------")
             self._logger.debug("Fit input dataset:")
-            info = "lambda_ input: " + str(lambda_)
-            if lambda_ is not None:
-                info += ": -> lambda_ should be frozen to this "
+            info = "parameter value input: " + str(parameter_value)
+            if parameter_value is not None:
+                info += "Target parameter " + self.limit_target.parameter_name
+                info += ": -> should be frozen to this "
                 info += "value in the following dataset"
             self._logger.debug(info)
             self._logger.debug(dataset)
@@ -231,22 +249,19 @@ class _LRBase(ECPLiBase):
                 self._logger.debug(info)
             self._logger.debug("---------------------------------------------")
 
-        def fit_dataset():
+        def fit_dataset() -> modeling.fit.OptimizeResult:
             """Fits the dataset to its model.
 
                Returns: FitResult
             """
+
             fit = modeling.Fit([dataset])
             with np.errstate(all="ignore"):
-                result = fit.run(optimize_opts={
-                        "print_level": fit_parameters["print_level"],
-                        "tol": fit_parameters["tolerance"],
-                        "strategy": fit_parameters["strategy"],
-                        "backend": fit_parameters["backend"]})
+                result = fit.run(optimize_opts=self.fit_config["optimize_opts"])
 
                 n_repeat_fit = 1
                 while result.success is False:
-                    if n_repeat_fit > fit_parameters["n_repeat_fit_max"]:
+                    if n_repeat_fit > self.fit_config["n_repeat_fit_max"]:
                         break
                     info = "Fit " + str(n_repeat_fit)
                     info += " didn't converge -> Repeating"
@@ -254,28 +269,28 @@ class _LRBase(ECPLiBase):
 
                     n_repeat_fit += 1
                     fit = modeling.Fit([dataset])
-                    result = fit.run(optimize_opts={
-                            "print_level": fit_parameters["print_level"],
-                            "tol": fit_parameters["tolerance"] + n_repeat_fit,
-                            "strategy": fit_parameters["strategy"],
-                            "backend": fit_parameters["backend"]})
+                    optimize_opts = self.fit_config["optimize_opts"]
+                    #optimize_opts["tol"] += n_repeat_fit
+                    result = fit.run(
+                        optimize_opts=optimize_opts)
                 if result.success is False:
-                    if lambda_ is None:
+                    if parameter_value is None:
                         info = "Cannot fit full model with free target "
                         info += "parameter"
                         raise RuntimeError(info)
                     else:
-                        info = "Fit failed for fixed lambda=" + str(lambda_)
+                        info = "Fit failed for fixed parameter_value="
+                        info += str(parameter_value)
                         info += " (this is typically no problem)"
                         self._logger.debug(info)
-
                 return result
 
-        def _best_fit_parameter(fit_result):
+        def _best_fit_parameter(
+                    fit_result: modeling.fit.OptimizeResult) -> float:
             """Extracts the best fit target parameter out of the fit result.
-
-               Returns:
-                best_fit_parameter (float)
+               Args:
+                fit_result: Return value of fit_dataset()
+               Returns: Best fitting parameter
             """
 
             best_fit_parameter = None
@@ -299,14 +314,7 @@ class _LRBase(ECPLiBase):
             
             return best_fit_parameter
 
-        def fill_ml_fit_pool(best_fit_parameter):
-            """Fills the ML fit pool.
-            """
-            if best_fit_parameter is not None and not self._ml_fit_pool.full:
-                self._ml_fit_pool.append(best_fit_parameter, dataset)
-
-
-        def print_afterfit_debug():
+        def print_afterfit_debug() -> None:
             """Prints debug information for the dataset state after the fit 
                if in respective log-level.
             """ 
@@ -318,13 +326,13 @@ class _LRBase(ECPLiBase):
                 self._logger.debug(dataset.background_model)
             self._logger.debug("---------------------------------------------")
 
-            info = str(self._n_fits) + ": Fit result for input lambda="
-            info += str(lambda_) + " -> fitstat: " + str(fitstat)
+            info = str(self._n_fits) + ": Fit result for input parameter_value="
+            info += str(parameter_value) + " -> fitstat: " + str(fitstat)
             self._logger.debug(info)
 
         dataset = initialize_dataset_fit_model()
        
-        if lambda_ is not None:
+        if parameter_value is not None:
             freeze_target_parameter(frozen=True)
         else:
             freeze_target_parameter(frozen=False)
@@ -333,33 +341,40 @@ class _LRBase(ECPLiBase):
 
         fit_result = fit_dataset()
         best_fit_parameter = _best_fit_parameter(fit_result)
-        fill_ml_fit_pool(best_fit_parameter)
+        if best_fit_parameter is not None and not self._ml_fit_pool.full:
+            self._ml_fit_pool.append(best_fit_parameter, dataset)
 
         fitstat = dataset.stat_sum()
         print_afterfit_debug()
 
         dataset.models = None # Clear models after each fit.
-        
-        return best_fit_parameter, fitstat
+        return (best_fit_parameter, fitstat)
 
-    def fitstat(self, lambda_=None):
+    def fitstat(self, parameter_value=None) -> float:
+        """Returns optimized likelihood value.
 
-        _, fitstat = self.fit(lambda_=lambda_)
+           Args:
+            parameter_value: Fix limit_target to this value when float.
+                             Keep limit_target free in fit if None.
+        """
+        _, fitstat = self.fit(parameter_value=parameter_value)
         return fitstat
 
     @property
-    def n_fits_performed(self):
+    def n_fits_performed(self) -> int:
         return self._n_fits
 
-    def ts(self):
+    def ts(self) -> float:
+        """Returns the test statistic for the LR test of a PL against an ECPL.
+        """
 
         if hasattr(self, "__ts"):
             return getattr(self, "__ts")
 
-        ml_fit_lambda = self.ml_fit_lambda()
-        fitstat0 = self.fitstat(lambda_=ml_fit_lambda)
+        ml_fit_parameter = self.ml_fit_parameter()
+        fitstat0 = self.fitstat(parameter_value=ml_fit_parameter)
 
-        fitstat_pl = self.fitstat(lambda_=0.)
+        fitstat_pl = self.fitstat(parameter_value=0.)
         info = "fitstat_pl=" + str(fitstat_pl)
         info += ", fitstat_ml=" + str(fitstat0)
         self._logger.debug(info)
@@ -369,10 +384,10 @@ class _LRBase(ECPLiBase):
         return ts
 
     @property
-    def _ul(self):
-        """Calculate an upper limit. The method has two steps:
+    def _ul(self) -> float:
+        """Returns an upper limit. The method has two steps:
            First: Try to find a solution to
-                  ProfileLikelihood(lambda)=critical_value(CL)
+                  ProfileLikelihood(parameter)=critical_value(CL)
                   for the parameter in [ml_fit_parameter, test_value]
                   with the brentq method.
                   In an optimal world, one could just use
@@ -384,33 +399,33 @@ class _LRBase(ECPLiBase):
 
         critical_value = self.critical_value
 
-        ml_fit_lambda = self.ml_fit_lambda()
+        ml_fit_parameter = self.ml_fit_parameter()
 
-        fitstat0 = self.fitstat(lambda_=ml_fit_lambda)
+        fitstat0 = self.fitstat(parameter_value=ml_fit_parameter)
 
-        def helper_func(lambda_ul):
+        def helper_func(parameter_ul):
 
-            fitstat = self.fitstat(lambda_ul)
+            fitstat = self.fitstat(parameter_ul)
             ts = fitstat - fitstat0
 
             return ts - critical_value
 
-        lambda_max_list = np.logspace(np.log10(ml_fit_lambda),
-                                      np.log10(self.limit_target.parmax),
-                                      10)
-
+        parameter_max_list = np.linspace(ml_fit_parameter,
+                                         self.limit_target.parmax,
+                                         10)
         limit_found = False
-        for lambda_max in lambda_max_list:
-            if ml_fit_lambda >= lambda_max:
-                continue
+        for parameter_max in parameter_max_list:
+            if limit_found:
+                break
+
             try:
-                ul = brentq(helper_func, a=ml_fit_lambda, b=lambda_max)
+                ul = brentq(helper_func, a=ml_fit_parameter, b=parameter_max)
                 limit_found = True
             except ValueError as e:
-                info = "Brentq solver for lambda_max="
-                info += str(lambda_max) + " failed: "
+                info = "Brentq solver for parameter_max="
+                info += str(parameter_max) + " failed: "
                 info += str(e) + " -> This is usually not a problem "
-                info += "because other lambda_max from the list will work."
+                info += "because other parameter_max from the list will work."
                 self._logger.debug(info)
                 continue
             except Exception as e:
@@ -422,9 +437,9 @@ class _LRBase(ECPLiBase):
             Couldn't do it with brentq -> Going into panic mode and try fsolve
             """
             try:
-                self._logger.debug("All brentq solvers failed. Using fsolve ...")
+                self._logger.debug("All brentq solvers failed. Using fsolve ..")
                 ul, info, ier, mesg = fsolve(helper_func,
-                                             x0=ml_fit_lambda,
+                                             x0=ml_fit_parameter,
                                              full_output=True)
                 if ier == 1:
                     self._logger.debug("fsolve succeeded: " + str(ul))
@@ -443,140 +458,109 @@ class _LRBase(ECPLiBase):
         return ul
 
     @property
-    def critical_value(self):
+    def critical_value(self) -> float:
         raise NotImplementedError
 
-    def ml_fit_lambda(self):
+    def ml_fit_parameter(self) -> float:
         raise NotImplementedError
-
-    def plot_ts(self, plt, lambda_true=None, lambda_ul=None):
-
-        ml_lambda, max_likelihood = self.fit()
-
-        likelihood_list = self._ml_fit_pool.likelihood_list
-        f_list = likelihood_list - max_likelihood
-        lambda_list = self._ml_fit_pool.lambda_list
-        index_list = np.argsort(lambda_list)
-        lambda_list = lambda_list[index_list]
-        f_list = f_list[index_list]
-        plt.plot(lambda_list, f_list, color="r")
-        critical_value = self.critical_value
-        plt.axvline(self.ml_fit_lambda(),
-                    label=r"Maximum likelihood $\lambda$", color="g", ls="--")
-        if lambda_true is not None:
-            plt.axvline(lambda_true,
-                        label=r"True $\lambda$", color="y", ls="--")
-        plt.axhline(critical_value, label="Critical value", color="b", ls="--")
-        if lambda_ul is not None:
-            plt.axvline(lambda_ul, color="m", ls="--",
-                        label=r"Upper limit on $\lambda$")
-            plt.gca().axvspan(plt.xlim()[0], lambda_ul, alpha=0.1, color="m")
-
-        plt.xscale("log")
-        plt.yscale("log")
-
-        plt.legend(fontsize="xx-large")
-        plt.xlabel(r"$\lambda$ ($\mathrm{TeV}^{-1}$)", fontsize=30)
-        plt.ylabel(r"$\Lambda(\lambda)$", fontsize=30)
-
-    def plot_profile_likelihood(self, plt, lambda_true=None):
-
-        ts = self.ts()
-        plt.title("TS=" + str(round(ts, 1)), fontsize=30, loc="left")
-
-        plt.plot(self._ml_fit_pool.lambda_list,
-                 self._ml_fit_pool.likelihood_list, color="b")
-
-        plt.axvline(self.ml_fit_lambda(), label=r"ML $\lambda$",
-                    color="r", ls="--")
-        if lambda_true is not None:
-            plt.axvline(lambda_true, label=r"True $\lambda$",
-                        color="g", ls="--")
-
-        plt.legend(fontsize="xx-large")
-        plt.xscale("log")
-        plt.xlabel(r"$\lambda$ ($\mathrm{TeV^{-1}}$)", fontsize=30)
-        plt.ylabel(r"-2$\ln\mathcal{L}$", fontsize=30)
 
 
 class ConstrainedLR(_LRBase):
     def __init__(self,
-                 limit_target,
-                 data,
-                 models,
+                 limit_target: LimitTarget,
+                 data: modeling.Dataset,
+                 models: modeling.models.Models,
                  CL: float,
-                 max_pool_entries : int =20,
-                 fit_backend : str ="minuit"):
+                 fit_config: dict={"optimize_opts": {"print_level": 0,
+                                                     "tol": 3.0,
+                                                     "strategy": 2,
+                                                     "backend": "minuit"},
+                                   "n_repeat_fit_max": 3},
+                 max_pool_entries: int=20):
 
         super().__init__(limit_target, data, models,
-                         CL, fit_backend, max_pool_entries)
+                         CL, fit_config, max_pool_entries)
 
     @property
-    def critical_value(self):
+    def critical_value(self) -> float:
+        """Critical value for the constrained LR test.
+        """
         return stats.chi2.ppf(2. * self.CL - 1, df=1)
 
     @property
-    def ul(self):
+    def ul(self) -> float:
         ul = self._ul
         if ul < self.limit_target.parmin:
             info = "Upper limit smaller than expected"
             raise RuntimeError(info)
         return ul
     
-    def ml_fit_lambda(self):
-        if hasattr(self, "_ml_fit_lambda"):
-            return self._ml_fit_lambda
+    def ml_fit_parameter(self) -> float:
+        """Returns the ML fit parameter given the parameter constraint to
+           non-negative.
+        """
+        if hasattr(self, "_ml_fit_parameter"):
+            return self._ml_fit_parameter
 
         with np.errstate(all="ignore"):
-            ml_fit_lambda, _ = self.fit()
+            ml_fit_parameter, _ = self.fit()
 
-        info = "ML fit lambda from unconstrained fit: "
-        info += str(ml_fit_lambda)
+        info = "ML fit parameter from unconstrained fit: "
+        info += str(ml_fit_parameter)
         self._logger.debug(info)
 
-        if ml_fit_lambda < 0.:
-            self._logger.debug("Setting ML fit lambda=0")
-            ml_fit_lambda = 0.
+        if ml_fit_parameter < 0.:
+            self._logger.debug("Setting ML fit parameter=0")
+            ml_fit_parameter = 0.
 
-        if ml_fit_lambda > self.limit_target.parmax:
-            info = "ml_fit_lambda=" + str(ml_fit_lambda)
-            info += " out of range: Increase lambda_max"
+        if ml_fit_parameter > self.limit_target.parmax:
+            info = "ml_fit_parameter=" + str(ml_fit_parameter)
+            info += " out of range: Increase limit_target.parmax"
             raise RuntimeError(info)
 
-        setattr(self, "_ml_fit_lambda", ml_fit_lambda)
+        setattr(self, "_ml_fit_parameter", ml_fit_parameter)
 
-        return ml_fit_lambda
+        return ml_fit_parameter
 
 
 class UnconstrainedLR(_LRBase):
     def __init__(self,
-                 limit_target,
-                 data,
-                 models,
-                 CL : float,
-                 max_pool_entries : int = 20,
-                 fit_backend : str = "minuit"):
+                 limit_target: LimitTarget,
+                 data: modeling.Dataset,
+                 models: modeling.models.Models,
+                 CL: float,
+                 fit_config: dict={"optimize_opts": {"print_level": 0,
+                                                     "tol": 3.0,
+                                                     "strategy": 2,
+                                                     "backend": "minuit"},
+                                   "n_repeat_fit_max": 3},
+                 max_pool_entries: int=20):
 
         super().__init__(limit_target, data, models, CL,
-                         fit_backend, max_pool_entries)
+                         fit_config, max_pool_entries,)
     @property
-    def critical_value(self):
+    def critical_value(self) -> float:
+        """Critical value for the unconstrained test.
+        """
         return stats.chi2.ppf(self.CL, df=1)
 
-    def ml_fit_lambda(self):
-        if hasattr(self, "_ml_fit_lambda"):
-            return self._ml_fit_lambda
+    def ml_fit_parameter(self) -> float:
+        """Returns the ML fit parameter without constraints.
+        """
+        if hasattr(self, "_ml_fit_parameter"):
+            return self._ml_fit_parameter
 
         with np.errstate(all="ignore"):
-            ml_fit_lambda, _ = self.fit()
+            ml_fit_parameter, _ = self.fit()
 
-        info = "ML fit lambda: "
-        info += str(ml_fit_lambda)
+        info = "ML fit parameter: "
+        info += str(ml_fit_parameter)
         self._logger.debug(info)
 
-        setattr(self, "_ml_fit_lambda", ml_fit_lambda)
+        setattr(self, "_ml_fit_parameter", ml_fit_parameter)
 
-        return ml_fit_lambda
+        return ml_fit_parameter
 
-    def ul(self):
+    @property
+    def ul(self) -> float:
         return self._ul
