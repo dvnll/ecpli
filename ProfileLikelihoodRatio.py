@@ -467,6 +467,10 @@ class LRBase(ECPLiBase):
 
 
 class ConstrainedLR(LRBase):
+    """An inversion of the profile likelihood ratio test where the
+       limit_target parameter is constrained to be non-negative.
+    """
+
     def __init__(self,
                  limit_target: LimitTarget,
                  data: modeling.Dataset,
@@ -525,6 +529,10 @@ class ConstrainedLR(LRBase):
 
 
 class UnconstrainedLR(LRBase):
+    """An inversion of the profile likelihood ratio test without any
+       constraints on the limit_target parameter.
+    """
+
     def __init__(self,
                  limit_target: LimitTarget,
                  data: modeling.Dataset,
