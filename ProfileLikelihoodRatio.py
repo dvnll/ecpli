@@ -113,7 +113,7 @@ class _ProfileLRPool(object):
         return closest_model
 
 
-class _LRBase(ECPLiBase):
+class LRBase(ECPLiBase):
     """Base class to invert the profile likelihood ratio test to derive
        limits on the limit_target methods to.
 
@@ -466,7 +466,7 @@ class _LRBase(ECPLiBase):
         raise NotImplementedError
 
 
-class ConstrainedLR(_LRBase):
+class ConstrainedLR(LRBase):
     def __init__(self,
                  limit_target: LimitTarget,
                  data: modeling.Dataset,
@@ -524,7 +524,7 @@ class ConstrainedLR(_LRBase):
         return ml_fit_parameter
 
 
-class UnconstrainedLR(_LRBase):
+class UnconstrainedLR(LRBase):
     def __init__(self,
                  limit_target: LimitTarget,
                  data: modeling.Dataset,

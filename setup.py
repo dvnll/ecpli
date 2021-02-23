@@ -26,7 +26,7 @@ setup(name="ecpli",
       version=PKG_VERSION,
       description=description,
       license="MIT",
-      install_requires=["numpy", "gammapy"])
+      install_requires=["numpy", "gammapy", "seaborn"])
 
 import gammapy
 if not gammapy.__version__ == "0.16":
