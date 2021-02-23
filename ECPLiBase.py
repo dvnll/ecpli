@@ -58,7 +58,7 @@ class ECPLiBase(ABC):
             limit_target: Description of the parameter for which a limit is to
                           be derived.
             data: Actuall gamma-ray data in form of a gammapy.modeling.Dataset.
-                  This can in practice e.g. be a MapDataset (3d-analysis) 
+                  This can in practice e.g. be a MapDataset (3d-analysis)
                   or a SpectrumDataset (1d-analysis).
             models: Collection of models used to describe the data.
             CL: Confidence level on which to work.
