@@ -72,7 +72,7 @@ class ECPLiBase(ABC):
                  CL: float):
 
         self.limit_target = limit_target
-        self.data = data
+        self.data = data.copy()
         self.data.models = None
         self.models = models
         self.CL = CL
