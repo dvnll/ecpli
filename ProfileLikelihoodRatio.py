@@ -83,9 +83,11 @@ class _ProfileLRPool(object):
         random_string = "".join(random.choice(letters) for _ in range(10))
 
         for model in ml_model:
-            name = model.name.split("_A_")[0]
-            temp_model.append(model.copy(name=name + "_A_" + random_string))
-
+            if isinstance(model, modeling.models.SkyModel):
+                name = model.name.split("_A_")[0]
+                temp_model.append(model.copy(name=name + "_A_" + random_string))
+            else:
+                temp_model.append(model)
         return temp_model
 
     def closest_model(self, parameter: float) -> modeling.models.Models:
@@ -107,9 +109,11 @@ class _ProfileLRPool(object):
         random_string = "".join(random.choice(letters) for _ in range(10))
         temp_model = []
         for model in closest_model:
-            name = model.name.split("_A_")[0]
-            temp_model.append(model.copy(name=name + "_A_" + random_string))
-
+            if isinstance(model, modeling.models.SkyModel):
+                name = model.name.split("_A_")[0]
+                temp_model.append(model.copy(name=name + "_A_" + random_string))
+            else:
+                temp_model.append(model)
         closest_model = temp_model
         return closest_model
 
@@ -164,12 +168,15 @@ class LRBase(ECPLiBase):
         letters = string.ascii_uppercase + string.digits
 
         random_string = "".join(random.choice(letters) for _ in range(10))
-        model_copy_list: List[modeling.SkyModel] = []
+        model_copy_list: List[modeling.Model] = []
         for model in self._fitstart_model:
-            original_model_name = model.name.split("_A")[0]
-            new_model_name = original_model_name + "_A_" + random_string
-            model_copy = model.copy(name=new_model_name)
-            model_copy_list.append(model_copy)
+            if isinstance(model, modeling.models.SkyModel):
+                original_model_name = model.name.split("_A")[0]
+                new_model_name = original_model_name + "_A_" + random_string
+                model_copy = model.copy(name=new_model_name)
+                model_copy_list.append(model_copy)
+            else:
+                model_copy_list.append(model)
 
         return modeling.models.Models(model_copy_list)
 
@@ -479,8 +486,7 @@ class ConstrainedLR(LRBase):
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
-                                                       "strategy": 2,
-                                                       "backend": "minuit"},
+                                                       "strategy": 2},
                                      "n_repeat_fit_max": 3},
                  max_pool_entries: int = 20):
 
@@ -541,8 +547,7 @@ class UnconstrainedLR(LRBase):
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
-                                                       "strategy": 2,
-                                                       "backend": "minuit"},
+                                                       "strategy": 2},
                                      "n_repeat_fit_max": 3},
                  max_pool_entries: int = 20):
 

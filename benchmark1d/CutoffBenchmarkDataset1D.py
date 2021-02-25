@@ -3,7 +3,8 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord, Angle
 from regions import CircleSkyRegion
 
-from gammapy.spectrum import SpectrumDataset, SpectrumDatasetMaker
+from gammapy.datasets import SpectrumDataset
+from gammapy.makers import SpectrumDatasetMaker
 from gammapy.modeling.models import (
     ExpCutoffPowerLawSpectralModel,
     SkyModel,
