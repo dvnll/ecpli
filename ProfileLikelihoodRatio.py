@@ -1,6 +1,7 @@
 import numpy as np
 
 import gammapy.modeling as modeling
+from gammapy.datasets import Dataset
 
 from scipy.optimize import brentq, fsolve
 import scipy.stats as stats
@@ -33,7 +34,7 @@ class _ProfileLRPool(object):
     def __init__(self, max_size: int):
         self._parameter_list: List[float] = []
         self._likelihood_list: List[float] = []
-        self._model_list: List[modeling.Dataset] = []
+        self._model_list: List[Dataset] = []
         self.max_size: int = max_size
 
     @property
@@ -43,7 +44,7 @@ class _ProfileLRPool(object):
     def __len__(self) -> int:
         return len(self._parameter_list)
 
-    def append(self, parameter: float, dataset: modeling.Dataset) -> None:
+    def append(self, parameter: float, dataset: Dataset) -> None:
         """Appends the profiled fit model and the parameter to the pool.
 
            Args:
@@ -126,7 +127,7 @@ class LRBase(ECPLiBase):
     """
 
     def __init__(self, limit_target: LimitTarget,
-                 data: modeling.Dataset,
+                 data: Dataset,
                  models: modeling.models.Models,
                  CL: float,
                  fit_config: dict,
@@ -473,7 +474,7 @@ class ConstrainedLR(LRBase):
 
     def __init__(self,
                  limit_target: LimitTarget,
-                 data: modeling.Dataset,
+                 data: Dataset,
                  models: modeling.models.Models,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
@@ -535,7 +536,7 @@ class UnconstrainedLR(LRBase):
 
     def __init__(self,
                  limit_target: LimitTarget,
-                 data: modeling.Dataset,
+                 data: Dataset,
                  models: modeling.models.Models,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
