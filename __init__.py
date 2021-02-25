@@ -1,9 +1,10 @@
 import gammapy
-if not gammapy.__version__ == "0.16":
-    raise ImportError("Currently only supporting gammapy v-0.16!")
+if not gammapy.__version__ == "0.18.2":
+    raise ImportError("This ecpli branch only supports gammapy-0.18.2!")
 
 from ecpli.MCMC import UniformPriorEnsembleMCMC, WeakPriorEnsembleMCMC
-from ecpli.Bootstrap import BestFitParametricBootstrap, PoissonParametricBootstrap, NonParametricBootstrap
+from ecpli.Bootstrap import BestFitParametricBootstrap,\
+                            PoissonParametricBootstrap, NonParametricBootstrap
 from ecpli.ProfileLikelihoodRatio import ConstrainedLR, UnconstrainedLR, LRBase
 
 

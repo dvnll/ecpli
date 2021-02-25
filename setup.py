@@ -29,5 +29,5 @@ setup(name="ecpli",
       install_requires=["numpy", "gammapy", "seaborn"])
 
 import gammapy
-if not gammapy.__version__ == "0.16":
-    raise ImportError("Currently only supporting gammapy v-0.16!")
+if not gammapy.__version__ == "0.18.2":
+    raise ImportError("This branch only supports gammapy-0.18.2!")
