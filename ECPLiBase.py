@@ -48,6 +48,11 @@ class LimitTarget(object):
             info += " is not in the model: " + str(model.parameters.names)
             raise RuntimeError(info)
 
+    def __str__(self):
+        info = "Limit target model " + str(self.model.name)
+        info += ", parameter: " + str(self.parameter_name)
+        return info
+
 
 class ECPLiBase(ABC):
     """All methods which implement a method to derive an upper limit on the
