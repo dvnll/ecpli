@@ -5,6 +5,7 @@ if not gammapy.__version__ == "0.16":
 from ecpli.MCMC import UniformPriorEnsembleMCMC, WeakPriorEnsembleMCMC
 from ecpli.Bootstrap import BestFitParametricBootstrap, PoissonParametricBootstrap, NonParametricBootstrap
 from ecpli.ProfileLikelihoodRatio import ConstrainedLR, UnconstrainedLR, LRBase
+from ecpli.ECPLiBase import LimitTarget
 
 
 VERSION = (0, 1, 0)

@@ -48,9 +48,8 @@ class CutoffBenchmarkDataset1D(object):
         pointing_b = pointing_galactic["pointing_b"]
         pointing = SkyCoord(pointing_l, pointing_b,
                             unit="deg", frame="galactic")
-
-        e_reco_min = e_reco_binning["e_reco_min"]
-        e_reco_max = e_reco_binning["e_reco_max"]
+        e_reco_min = u.Quantity(e_reco_binning["e_reco_min"]).to("TeV").value
+        e_reco_max = u.Quantity(e_reco_binning["e_reco_max"]).to("TeV").value
         n_e_reco = e_reco_binning["n_e_reco"]
         self.energy_axis = np.logspace(np.log10(e_reco_min),
                                        np.log10(e_reco_max), n_e_reco) * u.TeV
@@ -83,8 +82,8 @@ class CutoffBenchmarkDataset1D(object):
     def fit_start_model(self) -> Models:
 
         model_fit = ExpCutoffPowerLawSpectralModel(
-                index=0.9 * self.index_true,#2.2,
-                amplitude=self.normalization_true / 2.,#100 * mCrab,#1.3e-12 * u.Unit("cm-2 s-1 TeV-1"),
+                index=0.9 * self.index_true,
+                amplitude=self.normalization_true / 2.,
                 lambda_=1./40 * u.Unit("TeV-1"),
                 reference=1 * u.TeV
             )
@@ -144,18 +143,6 @@ if __name__ == "__main__":
                         dest="OUTDIR",
                         required=True)
 
-    parser.add_argument("--index",
-                        type=float,
-                        help="Powerlaw index",
-                        dest="INDEX",
-                        default=2.3)
-
-    parser.add_argument("--normalization",
-                        type=float,
-                        help="Flux normalization in mCrab",
-                        dest="NORM",
-                        default=25.0)
-
     parser.add_argument("--irf_file",
                         type=str,
                         help="CTA IRF file",
@@ -173,9 +160,12 @@ if __name__ == "__main__":
     with open(options.CONFIG, "r") as fin:
         config = json.load(fin)
 
+    normalization_true = config["normalization_mcrab"] * mCrab
+    index_true = config["index"]
+
     ecut_binning = config["ecut_binning"]
-    ecut_true_max = ecut_binning["ecut_true_max"]
-    ecut_true_min = ecut_binning["ecut_true_min"]
+    ecut_true_max = u.Quantity(ecut_binning["ecut_true_max"]).to("TeV").value
+    ecut_true_min = u.Quantity(ecut_binning["ecut_true_min"]).to("TeV").value
     n_ecut = ecut_binning["n_ecut"]
     if ecut_true_max <= ecut_true_min:
         info = "Maximal cutoff energy must be "
@@ -202,9 +192,6 @@ if __name__ == "__main__":
                 np.log10(ecut_true_max),
                 n_ecut) * u.Unit("TeV")
 
-    index_true = options.INDEX
-    normalization_true = options.NORM * mCrab
-
     for ecut_true in ecut_true_list:
         lambda_true = 1 / ecut_true
         dataset_parameter = {"name": "CutoffBenchmarkDataset1D",
@@ -212,7 +199,7 @@ if __name__ == "__main__":
                              {"lambda_true": lambda_true,
                               "index_true": index_true,
                               "normalization_true": normalization_true,
-                              "livetime": config["livetime"] * u.h,
+                              "livetime": config["livetime"],
                               "pointing_galactic": config["pointing_galactic"],
                               "e_reco_binning": config["e_reco_binning"],
                               "on_region_radius": config["on_region_radius"]}}

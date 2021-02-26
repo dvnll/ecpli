@@ -1,5 +1,5 @@
 import numpy as np
-import seaborn as sns
+#import seaborn as sns
 
 from gammapy.modeling import Fit
 
