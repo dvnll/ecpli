@@ -1,6 +1,7 @@
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import SkyCoord, Angle
+
 from regions import CircleSkyRegion
 
 from gammapy.datasets import SpectrumDataset
@@ -10,6 +11,8 @@ from gammapy.modeling.models import (
     SkyModel,
     Models
 )
+from gammapy.maps import MapAxis
+
 from gammapy.irf import load_cta_irfs
 from gammapy.data import Observation
 from ecpli.ECPLiBase import mCrab
@@ -49,12 +52,11 @@ class CutoffBenchmarkDataset1D(object):
         pointing_b = pointing_galactic["pointing_b"]
         pointing = SkyCoord(pointing_l, pointing_b,
                             unit="deg", frame="galactic")
-
-        e_reco_min = e_reco_binning["e_reco_min"]
-        e_reco_max = e_reco_binning["e_reco_max"]
-        n_e_reco = e_reco_binning["n_e_reco"]
-        self.energy_axis = np.logspace(np.log10(e_reco_min),
-                                       np.log10(e_reco_max), n_e_reco) * u.TeV
+        e_reco_min = u.Quantity(e_reco_binning["e_reco_min"]).to("TeV").value
+        e_reco_max = u.Quantity(e_reco_binning["e_reco_max"]).to("TeV").value
+        self.e_reco_min = e_reco_min
+        self.e_reco_max = e_reco_max
+        self.n_e_reco = e_reco_binning["n_e_reco"]
 
         on_region_radius = Angle(on_region_radius)
         self.on_region = CircleSkyRegion(center=pointing,
@@ -84,8 +86,8 @@ class CutoffBenchmarkDataset1D(object):
     def fit_start_model(self) -> Models:
 
         model_fit = ExpCutoffPowerLawSpectralModel(
-                index=0.9 * self.index_true,#2.2,
-                amplitude=self.normalization_true / 2.,#100 * mCrab,#1.3e-12 * u.Unit("cm-2 s-1 TeV-1"),
+                index=0.9 * self.index_true,
+                amplitude=self.normalization_true / 2.,
                 lambda_=1./40 * u.Unit("TeV-1"),
                 reference=1 * u.TeV
             )
@@ -99,23 +101,42 @@ class CutoffBenchmarkDataset1D(object):
         """Actual event data in form of a SpectrumDataset.
         """
 
+        energy_axis = MapAxis.from_edges(
+            np.logspace(np.log10(self.e_reco_min),
+                        np.log10(self.e_reco_max),
+                        self.n_e_reco),
+            unit="TeV",
+            name="energy",
+            interp="log"
+        )
+
+        energy_axis_true = MapAxis.from_edges(
+            np.logspace(np.log10(self.e_reco_min) - 0.5,
+                        np.log10(self.e_reco_max) + 1,
+                        self.n_e_reco * 2),
+            unit="TeV",
+            name="energy_true",
+            interp="log"
+        )
+
         dataset_empty = SpectrumDataset.create(
-                e_reco=self.energy_axis,
-                e_true=self.energy_axis,
-                region=self.on_region
-            )
+            e_reco=energy_axis,
+            e_true=energy_axis_true,
+            region=self.on_region,
+            name="obs-0",
+        )
         maker = SpectrumDatasetMaker(
-                containment_correction=False,
-                selection=["background", "aeff", "edisp"]
-            )
+            selection=["aeff", "exposure", "edisp", "background"]
+        )
         dataset = maker.run(dataset_empty, self.obs)
         dataset.models = self.true_model
         dataset.fake()
+
         return dataset
 
 
 if __name__ == "__main__":
-    """Main method to create a set of 1-dimensional Monte-Carlo 
+    """Main method to create a set of 1-dimensional Monte-Carlo
        data (SpectrumDataset) for a given set of true source parameters.
        Each Monte-Carlo source data is saved into a pickle-file. This file
        is to be analyzed with runecpli.py with regard to the limit on the
@@ -145,18 +166,6 @@ if __name__ == "__main__":
                         dest="OUTDIR",
                         required=True)
 
-    parser.add_argument("--index",
-                        type=float,
-                        help="Powerlaw index",
-                        dest="INDEX",
-                        default=2.3)
-
-    parser.add_argument("--normalization",
-                        type=float,
-                        help="Flux normalization in mCrab",
-                        dest="NORM",
-                        default=25.0)
-
     parser.add_argument("--irf_file",
                         type=str,
                         help="CTA IRF file",
@@ -174,9 +183,12 @@ if __name__ == "__main__":
     with open(options.CONFIG, "r") as fin:
         config = json.load(fin)
 
+    normalization_true = config["normalization_mcrab"] * mCrab
+    index_true = config["index"]
+
     ecut_binning = config["ecut_binning"]
-    ecut_true_max = ecut_binning["ecut_true_max"]
-    ecut_true_min = ecut_binning["ecut_true_min"]
+    ecut_true_max = u.Quantity(ecut_binning["ecut_true_max"]).to("TeV").value
+    ecut_true_min = u.Quantity(ecut_binning["ecut_true_min"]).to("TeV").value
     n_ecut = ecut_binning["n_ecut"]
     if ecut_true_max <= ecut_true_min:
         info = "Maximal cutoff energy must be "
@@ -203,9 +215,6 @@ if __name__ == "__main__":
                 np.log10(ecut_true_max),
                 n_ecut) * u.Unit("TeV")
 
-    index_true = options.INDEX
-    normalization_true = options.NORM * mCrab
-
     for ecut_true in ecut_true_list:
         lambda_true = 1 / ecut_true
         dataset_parameter = {"name": "CutoffBenchmarkDataset1D",
@@ -213,7 +222,7 @@ if __name__ == "__main__":
                              {"lambda_true": lambda_true,
                               "index_true": index_true,
                               "normalization_true": normalization_true,
-                              "livetime": config["livetime"] * u.h,
+                              "livetime": config["livetime"],
                               "pointing_galactic": config["pointing_galactic"],
                               "e_reco_binning": config["e_reco_binning"],
                               "on_region_radius": config["on_region_radius"]}}
