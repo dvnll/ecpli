@@ -12,6 +12,7 @@ from gammapy.modeling.models import (
 from gammapy.irf import load_cta_irfs
 from gammapy.data import Observation
 from ecpli.ECPLiBase import mCrab
+from scipy.optimize import fsolve
 
 
 class CutoffBenchmarkDataset1D(object):
@@ -66,12 +67,28 @@ class CutoffBenchmarkDataset1D(object):
 
     @property
     def true_model(self) -> SkyModel:
+
+        def ecpl_model(amplitude):
+            return ExpCutoffPowerLawSpectralModel(
+                index=self.index_true,
+                amplitude=amplitude / (u.cm**2 * u.s * u.TeV),
+                reference=1 * u.TeV,
+                lambda_=self.lambda_true,
+                alpha=1.0)
+
+        def flux_difference_at_reference(x):
+            diff_norm = self.normalization_true.value
+            flux = ecpl_model(x)(energy=1 * u.TeV)
+            return flux.value - diff_norm
+
+        amplitude = fsolve(flux_difference_at_reference,
+                           self.normalization_true.value)[0]
+
         model_simu = ExpCutoffPowerLawSpectralModel(
             index=self.index_true,
-            amplitude=self.normalization_true,
+            amplitude=amplitude / (u.cm**2 * u.s * u.TeV),
             lambda_=self.lambda_true,
-            reference=1 * u.TeV,
-        )
+            reference=1 * u.TeV)
 
         model = SkyModel(spectral_model=model_simu,
                          name="source")
@@ -113,7 +130,7 @@ class CutoffBenchmarkDataset1D(object):
 
 
 if __name__ == "__main__":
-    """Main method to create a set of 1-dimensional Monte-Carlo 
+    """Main method to create a set of 1-dimensional Monte-Carlo
        data (SpectrumDataset) for a given set of true source parameters.
        Each Monte-Carlo source data is saved into a pickle-file. This file
        is to be analyzed with runecpli.py with regard to the limit on the
