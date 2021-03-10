@@ -1,11 +1,14 @@
+"""Performs the analysis of a CufoffBenchmarkDataset3D.
+"""
+
 import argparse
 import pickle
 import ecpli
-from ecpli.benchmark1d.CutoffBenchmarkDataset1D import CutoffBenchmarkDataset1D
+from ecpli.benchmark3d.CutoffBenchmarkDataset3D import CutoffBenchmarkDataset3D
 import json
 from ecpli.ECPLiBase import LimitTarget
 import logging
-
+import copy
 
 logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
@@ -74,23 +77,24 @@ for method_name in method_name_list:
                                parameter_name="lambda_",
                                parmin=0.,
                                parmax=1./0.05)
-
+    data_copy = copy.copy(dataset["dataset"])
+    data = data_copy.data()
     arg_dict = {"limit_target": limit_target,
-                "data": dataset["data"],
+                "data": data,
                 "models": dataset["dataset"].fit_start_model,
                 "CL": config["CL"]}
 
     for arg_key in optargs.keys():
         arg_dict[arg_key] = optargs[arg_key]
-    
-    print(method_name + ": " + str(arg_dict))
+
     method = getattr(ecpli, method_name)(**arg_dict)
 
     ul = method.ul
 
-    if not "limit_list" in dataset.keys():
+    if "limit_list" not in dataset.keys():
         dataset["limit_list"] = []
-    dataset["limit_list"].append((method.copy(), ul))
+
+    dataset["limit_list"].append((method_name, ul))
 
 if outfile is None:
     outfile = infile.replace(".pickle", "lr.pickle")

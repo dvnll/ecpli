@@ -81,7 +81,7 @@ class ECPLiBase(ABC):
 
         if limit_target.model.name not in models.names:
             info = "Cannot find model " + limit_target.model.name
-            info += " in model list: " + models.names
+            info += " in model list: " + str(models.names)
             raise RuntimeError(info)
 
     @property
