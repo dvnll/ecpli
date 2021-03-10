@@ -194,6 +194,9 @@ class CutoffBenchmarkDataset3D(object):
 
 
 if __name__ == "__main__":
+    """Routine used to create CutoffBencharkDataset3d datasets.
+       Output datasets are to be analyzed with runecpli.py.
+    """
 
     import argparse
     import pickle
@@ -226,7 +229,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--config",
                         type=str,
-                        help="Config file",
+                        help="CutoffBenchmarkDataset3D configuration file",
                         dest="CONFIG",
                         required=True)
 

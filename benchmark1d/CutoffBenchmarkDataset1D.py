@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--config",
                         type=str,
-                        help="Config file",
+                        help="CutoffBenchmarkDataset1d configuration file",
                         dest="CONFIG",
                         required=True)
 
