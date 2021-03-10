@@ -94,7 +94,7 @@ for method_name in method_name_list:
     if "limit_list" not in dataset.keys():
         dataset["limit_list"] = []
 
-    dataset["limit_list"].append((method_name, ul))
+    dataset["limit_list"].append((method_name, ul, config["CL"]))
 
 if outfile is None:
     outfile = infile.replace(".pickle", "lr.pickle")
