@@ -281,7 +281,7 @@ if __name__ == "__main__":
 
     for ecut_true in ecut_true_list:
         random_state = get_random_seed()
-
+        time.sleep(1)
         lambda_true = 1 / ecut_true
         livetime = u.quantity.Quantity(config["livetime"])
         dataset_parameter = {"name": "CutoffBenchmarkDataset3D",
