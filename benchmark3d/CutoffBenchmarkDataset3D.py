@@ -280,23 +280,24 @@ if __name__ == "__main__":
         return seed
 
     for ecut_true in ecut_true_list:
-        random_state = get_random_seed()
-        time.sleep(1)
         lambda_true = 1 / ecut_true
         livetime = u.quantity.Quantity(config["livetime"])
-        dataset_parameter = {"name": "CutoffBenchmarkDataset3D",
-                             "true_parameter":
-                             {"lambda_true": lambda_true,
-                              "index_true": config["index"],
-                              "normalization_true": normalization_true,
-                              "livetime": livetime,
-                              "source_pos_radec": config["source_pos_radec"],
-                              "e_reco_binning": config["e_reco_binning"],
-                              "map_geom": config["map_geom"],
-                              "offset": u.quantity.Quantity(config["offset"]),
-                              "random_state": random_state}}
-
         for _ in range(n_benchmarks):
+
+            random_state = get_random_seed()
+            dataset_parameter = {
+                    "name": "CutoffBenchmarkDataset3D",
+                    "true_parameter":
+                    {"lambda_true": lambda_true,
+                     "index_true": config["index"],
+                     "normalization_true": normalization_true,
+                     "livetime": livetime,
+                     "source_pos_radec": config["source_pos_radec"],
+                     "e_reco_binning": config["e_reco_binning"],
+                     "map_geom": config["map_geom"],
+                     "offset": u.quantity.Quantity(config["offset"]),
+                     "random_state": random_state}}
+
             dataset = CutoffBenchmarkDataset3D(
                                     irf_file=options.IRF,
                                     **dataset_parameter["true_parameter"])
