@@ -2,12 +2,21 @@ import string
 import random
 import numpy as np
 from gammapy.modeling import Fit
-from ecpli.ECPLiBase import ECPLiBase
+from ecpli.ECPLiBase import ECPLiBase, LimitTarget
+import gammapy.modeling as modeling
+
+from typing import List
 
 
 class _BootstrapBase(ECPLiBase):
 
-    def __init__(self, limit_target, data, models, CL, relative_ul_error_max):
+    def __init__(self,
+                 limit_target: LimitTarget,
+                 data: modeling.Dataset,
+                 models: modeling.models.Models,
+                 CL: float,
+                 relative_ul_error_max: float):
+
         super().__init__(limit_target, data, models, CL)
 
         self.dataset = data
@@ -18,19 +27,23 @@ class _BootstrapBase(ECPLiBase):
 
         self.count_data = dataset_copy.counts.data
         self.relative_ul_error_max = relative_ul_error_max
+        self.fit_backend = "minuit"
 
-    def resample(self):
+    def resample(self) -> np.ndarray:
+        """Returns bootstrap sample of event count data.
+        """
+
         info = "Must be implemented in derived classes"
         raise NotImplementedError(info)
 
-    def _one_ul(self, n_bootstrap, lambda_list=None):
+    def _one_ul(self, n_bootstrap: int, lambda_list=None):
 
         dataset = self.dataset.copy("dscopy")
 
         if lambda_list is None:
             lambda_list = []
 
-        def fill_lambda_list(lambda_list, n_entries):
+        def fill_lambda_list(lambda_list, n_entries: int):
 
             n_fit_errors = 0
             while len(lambda_list) < n_entries:
@@ -70,36 +83,37 @@ class _BootstrapBase(ECPLiBase):
 
         lambda_list = fill_lambda_list(lambda_list, n_bootstrap)
 
-        ul = self._ul_from_lambda_list(lambda_list)
+        def _ul_from_lambda_list(lambda_list: List[float]) -> float:
+            lambda_list = np.array(lambda_list)
+            ul = np.quantile(lambda_list, q=self.CL)
+
+            if ul < 0.:
+                """
+                If not enough entries in the lambda_list are larger than zero,
+                the formal UL at this confidence level is zero. However,
+                the interval (0, UL=0) is a point and not an interval. A point
+                must have zero coverage, so that's a no brainer.
+                Instead, take the smallest positive entry in the lambda_list as
+                UL. This is in practice the same as improving the
+                confidence level and will lead to over-coverage with respect
+                to the requested confidence level - which is fine.
+                """
+                positive_list = lambda_list[lambda_list > 0]
+                if len(positive_list) == 0:
+                    ul = 0.
+                else:
+                    ul = np.min(lambda_list[lambda_list > 0])
+
+            return ul
+
+        ul = _ul_from_lambda_list(lambda_list)
 
         return ul, lambda_list
 
-    def _ul_from_lambda_list(self, lambda_list):
-        lambda_list = np.array(lambda_list)
-        ul = np.quantile(lambda_list, q=self.CL)
-
-        if ul < 0.:
-            """
-            If not enough entries in the lambda_list are larger than zero,
-            the formal UL at this confidence level is zero. However,
-            the interval (0, UL=0) is a point and not an interval. A point
-            must have zero coverage, so that's a no brainer.
-            Instead, take the smallest positive entry in the lambda_list as
-            UL. This is in practice the same as improving the
-            confidence level and
-            will lead to over-coverage with respect to the requested confidence
-            level - which is fine.
-            """
-            positive_list = lambda_list[lambda_list > 0]
-            if len(positive_list) == 0:
-                ul = 0.
-            else:
-                ul = np.min(lambda_list[lambda_list > 0])
-
-        return ul
-
     @property
-    def ul(self):
+    def ul(self) -> float:
+        """Returns the upper limit on the limit target.
+        """
 
         n_ul = 10
 
@@ -152,7 +166,7 @@ class _BootstrapBase(ECPLiBase):
         of 1/sqrt(10) more precise than the
         test bootstrap samples.
         """
-        ul, lambda_list = self._one_ul(n_bootstrap, 
+        ul, lambda_list = self._one_ul(n_bootstrap,
                                        lambda_list=final_lambda_list.ravel())
         info = "Final UL: " + str(ul)
         info += " with bootstrap size: " + str(len(lambda_list))
@@ -161,14 +175,19 @@ class _BootstrapBase(ECPLiBase):
 
 
 class BestFitParametricBootstrap(_BootstrapBase):
+    """Bootstrap samples are Poisson samples from the best fitting model.
+    """
 
-    def __init__(self, limit_target, data, models, CL, relative_ul_error_max):
+    def __init__(self,
+                 limit_target: LimitTarget,
+                 data: modeling.Dataset,
+                 models: modeling.models.Models,
+                 CL: float,
+                 relative_ul_error_max: float):
+
         super().__init__(limit_target, data, models, CL, relative_ul_error_max)
- 
-    def resample(self):
-        """
-        Parametric Poisson from best fit to spectral model
-        """
+
+    def resample(self) -> np.ndarray:
         if hasattr(self, "npred"):
             return np.random.poisson(self.npred)
 
@@ -185,8 +204,16 @@ class BestFitParametricBootstrap(_BootstrapBase):
 
 
 class PoissonParametricBootstrap(_BootstrapBase):
-    
-    def __init__(self, limit_target, data, models, CL, relative_ul_error_max):
+    """Bootstrap samples are Poisson samples of the binned measured data.
+    """
+
+    def __init__(self,
+                 limit_target: LimitTarget,
+                 data: modeling.Dataset,
+                 models: modeling.models.Models,
+                 CL: float,
+                 relative_ul_error_max: float):
+
         letters = string.ascii_uppercase + string.digits
         random_string = "".join(random.choice(letters) for _ in range(10))
 
@@ -195,17 +222,20 @@ class PoissonParametricBootstrap(_BootstrapBase):
         self.count_data = dataset_copy.counts.data
         super().__init__(limit_target, data, models, CL, relative_ul_error_max)
 
-    def resample(self):
-        """
-        Parametric poisson from measured bin counts
-        """
-        result = np.random.poisson(self.count_data)
-        return result
+    def resample(self) -> np.ndarray:
+        return np.random.poisson(self.count_data)
 
 
 class NonParametricBootstrap(_BootstrapBase):
+    """Bootstraps are multinomial vectors of the binned measured data.
+    """
 
-    def __init__(self, limit_target, data, models, CL, relative_ul_error_max):
+    def __init__(self,
+                 limit_target: LimitTarget,
+                 models: modeling.models.Models,
+                 CL: float,
+                 relative_ul_error_max: float):
+
         self.n_events = np.sum(data.counts.data.ravel())
         letters = string.ascii_uppercase + string.digits
         random_string = "".join(random.choice(letters) for _ in range(10))
@@ -216,10 +246,7 @@ class NonParametricBootstrap(_BootstrapBase):
 
         super().__init__(limit_target, data, models, CL, relative_ul_error_max)
 
-    def resample(self):
-        """
-        Non-parametric in the original bootstrap sense
-        """
+    def resample(self) -> np.ndarray:
 
         r = np.random.multinomial(self.n_events,
                                   self.probability_vector,
