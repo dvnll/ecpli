@@ -9,13 +9,36 @@ from typing import List
 
 
 class _BootstrapBase(ECPLiBase):
+    """Base class to derive a limit on a model parameter with bootstrap
+       samples.
 
+       Attributes:
+        dataset: Gammapy dataset from which the model parameter constraint
+                 is to be derived.
+        count_data: Measured event data
+        relative_ul_error_max: Maximal relative error on the limit.
+        fit_backend: Fit backend to be used in case that fits are performed.
+        n_ul: Number of bootstrap datasets to generate to control the
+              relative_ul_error_max.
+    """
     def __init__(self,
                  limit_target: LimitTarget,
                  data: modeling.Dataset,
                  models: modeling.models.Models,
                  CL: float,
                  relative_ul_error_max: float):
+        """Args:
+            limit_target: Instance of LimitTarget to specify parameter and
+                          model to be constrained.
+            data: Gammapy dataset from which the model parameter constraint
+                  is to be derived.
+            models: Models which are to be fit to the data.
+            CL: Confidence level (e.g. 0.95) for the limit.
+            relative_ul_error_max: Relative error on the upper limit. Bootstrap
+                                   samples are drawn until this relative
+                                   error is achieved. The error is controled by
+                                   comparing multiple bootstrap datasets.
+        """
 
         super().__init__(limit_target, data, models, CL)
 
@@ -28,6 +51,7 @@ class _BootstrapBase(ECPLiBase):
         self.count_data = dataset_copy.counts.data
         self.relative_ul_error_max = relative_ul_error_max
         self.fit_backend = "minuit"
+        self.n_ul = 10
 
     def resample(self) -> np.ndarray:
         """Returns bootstrap sample of event count data.
@@ -115,17 +139,15 @@ class _BootstrapBase(ECPLiBase):
         """Returns the upper limit on the limit target.
         """
 
-        n_ul = 10
-
         lambda_list_list = []
 
-        def _relative_ul_error(lambda_list_list, n_ul, n_bootstrap):
+        def _relative_ul_error(lambda_list_list, n_bootstrap):
 
             ul_list = []
             print(str(n_bootstrap) + " bootstrap samples ..")
 
-            for i in range(n_ul):
-                if len(lambda_list_list) < n_ul:
+            for i in range(self.n_ul):
+                if len(lambda_list_list) < self.n_ul:
                     lambda_list = None
                 else:
                     lambda_list = lambda_list_list[i]
@@ -134,7 +156,7 @@ class _BootstrapBase(ECPLiBase):
                                                lambda_list=lambda_list)
                 ul_list.append(ul)
 
-                if len(lambda_list_list) < n_ul:
+                if len(lambda_list_list) < self.n_ul:
                     lambda_list_list.append(lambda_list)
                 else:
                     lambda_list_list[i] = lambda_list
@@ -152,11 +174,11 @@ class _BootstrapBase(ECPLiBase):
 
         n_bootstrap = 300
         relative_ul_error = _relative_ul_error(lambda_list_list,
-                                               n_ul, n_bootstrap)
+                                               n_bootstrap)
         while(relative_ul_error > self.relative_ul_error_max):
             n_bootstrap *= 2
             relative_ul_error = _relative_ul_error(lambda_list_list,
-                                                   n_ul, n_bootstrap)
+                                                   n_bootstrap)
 
         final_lambda_list = np.array(lambda_list_list)
         """
@@ -184,6 +206,8 @@ class BestFitParametricBootstrap(_BootstrapBase):
                  models: modeling.models.Models,
                  CL: float,
                  relative_ul_error_max: float):
+        """Args see base class.
+        """
 
         super().__init__(limit_target, data, models, CL, relative_ul_error_max)
 
@@ -213,6 +237,8 @@ class PoissonParametricBootstrap(_BootstrapBase):
                  models: modeling.models.Models,
                  CL: float,
                  relative_ul_error_max: float):
+        """Args see base class.
+        """
 
         letters = string.ascii_uppercase + string.digits
         random_string = "".join(random.choice(letters) for _ in range(10))
@@ -232,9 +258,12 @@ class NonParametricBootstrap(_BootstrapBase):
 
     def __init__(self,
                  limit_target: LimitTarget,
+                 data: modeling.Dataset,
                  models: modeling.models.Models,
                  CL: float,
                  relative_ul_error_max: float):
+        """Args see base class.
+        """
 
         self.n_events = np.sum(data.counts.data.ravel())
         letters = string.ascii_uppercase + string.digits
