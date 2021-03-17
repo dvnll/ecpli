@@ -60,17 +60,18 @@ class _BootstrapBase(ECPLiBase):
         info = "Must be implemented in derived classes"
         raise NotImplementedError(info)
 
-    def _one_ul(self, n_bootstrap: int, lambda_list=None):
-
+    def _one_ul(self, n_bootstrap: int, bootstrap_list=None):
         dataset = self.dataset.copy("dscopy")
 
-        if lambda_list is None:
-            lambda_list = []
+        if bootstrap_list is None:
+            bootstrap_list = []
 
-        def fill_lambda_list(lambda_list, n_entries: int):
-
+        def fill_bootstrap_list(bootstrap_list, n_entries: int):
+            """Draws n_entries bootstrap datataset samples and fills up
+               the bootstrap_list.
+            """
             n_fit_errors = 0
-            while len(lambda_list) < n_entries:
+            while len(bootstrap_list) < n_entries:
                 dataset.counts.data = self.resample()
                 dataset.models = self.model.copy()
                 fit = Fit([dataset])
@@ -82,84 +83,93 @@ class _BootstrapBase(ECPLiBase):
                         n_fit_errors += 1
                         continue
 
-                lambda_nan = np.isnan(result.parameters["lambda_"].value)
-                if result.success is False or lambda_nan:
+                par_name = self.limit_target.parameter_name
+                bootstrap_nan = np.isnan(result.parameters[par_name].value)
+                if result.success is False or bootstrap_nan:
                     n_fit_errors += 1
                     info = "Fit problem --> Success : "
-                    info += str(result.success) + " - Lambda Nan : "
-                    info += str(np.isnan(result.parameters["lambda_"].value))
-                    print(info)
+                    info += str(result.success) + " - best fit nan?: "
+                    info += str(np.isnan(result.parameters[par_name].value))
+                    self._logger.debug(info)
                     continue
 
-                lambda_ml = result.parameters["lambda_"].value
-                if len(lambda_list) % 10 == 0:
-                    print("%", end="")
+                bootstrap_ml = result.parameters[par_name].value
+                if len(bootstrap_list) % 10 == 0:
+                    self._logger.debug("%", end="")
 
-                lambda_list.append(lambda_ml)
+                bootstrap_list.append(bootstrap_ml)
 
-            print("")
+            self._logger.debug("")
             if n_fit_errors > 0:
                 info = "Had " + str(n_fit_errors)
                 info += " fitting errors -> resimulated each until gone"
-                print(info)
+                self._logger.debug(info)
 
-            return lambda_list
+            return bootstrap_list
 
-        lambda_list = fill_lambda_list(lambda_list, n_bootstrap)
+        bootstrap_list = fill_bootstrap_list(bootstrap_list, n_bootstrap)
 
-        def _ul_from_lambda_list(lambda_list: List[float]) -> float:
-            lambda_list = np.array(lambda_list)
-            ul = np.quantile(lambda_list, q=self.CL)
+        def _ul_from_bootstrap_list(bootstrap_list: List[float]) -> float:
+            """Calculates the upper limit as quantile of the bootstrap_list.
+            """
 
-            if ul < 0.:
+            bootstrap_list = np.array(bootstrap_list)
+            ul = np.quantile(bootstrap_list, q=self.CL)
+
+            parmin = self.limit_target.parmin
+            if ul < parmin:
                 """
-                If not enough entries in the lambda_list are larger than zero,
-                the formal UL at this confidence level is zero. However,
+                If not enough entries in the bootstrap_list are
+                larger than the minimal parameter,
+                the formal UL at this confidence level is zero. Consider the
+                case where limit_target.parmin=0 as an example. Now,
                 the interval (0, UL=0) is a point and not an interval. A point
                 must have zero coverage, so that's a no brainer.
-                Instead, take the smallest positive entry in the lambda_list as
-                UL. This is in practice the same as improving the
+                Instead, take the smallest positive entry in the
+                bootstrap_list as UL.
+                This is in practice the same as improving the
                 confidence level and will lead to over-coverage with respect
                 to the requested confidence level - which is fine.
                 """
-                positive_list = lambda_list[lambda_list > 0]
+                positive_list = bootstrap_list[bootstrap_list > parmin]
                 if len(positive_list) == 0:
-                    ul = 0.
+                    ul = parmin
                 else:
-                    ul = np.min(lambda_list[lambda_list > 0])
+                    ul = np.min(bootstrap_list[bootstrap_list > parmin])
 
             return ul
 
-        ul = _ul_from_lambda_list(lambda_list)
+        ul = _ul_from_bootstrap_list(bootstrap_list)
 
-        return ul, lambda_list
+        return ul, bootstrap_list
 
     @property
     def ul(self) -> float:
         """Returns the upper limit on the limit target.
         """
 
-        lambda_list_list = []
+        bootstrap_list_list = []
 
-        def _relative_ul_error(lambda_list_list, n_bootstrap):
+        def _relative_ul_error(bootstrap_list_list, n_bootstrap):
 
             ul_list = []
-            print(str(n_bootstrap) + " bootstrap samples ..")
+            self._logger.debug(str(n_bootstrap) + " bootstrap samples ..")
 
             for i in range(self.n_ul):
-                if len(lambda_list_list) < self.n_ul:
-                    lambda_list = None
+                if len(bootstrap_list_list) < self.n_ul:
+                    bootstrap_list = None
                 else:
-                    lambda_list = lambda_list_list[i]
+                    bootstrap_list = bootstrap_list_list[i]
 
-                ul, lambda_list = self._one_ul(n_bootstrap,
-                                               lambda_list=lambda_list)
+                ul, bootstrap_list = self._one_ul(
+                                            n_bootstrap,
+                                            bootstrap_list=bootstrap_list)
                 ul_list.append(ul)
 
-                if len(lambda_list_list) < self.n_ul:
-                    lambda_list_list.append(lambda_list)
+                if len(bootstrap_list_list) < self.n_ul:
+                    bootstrap_list_list.append(bootstrap_list)
                 else:
-                    lambda_list_list[i] = lambda_list
+                    bootstrap_list_list[i] = bootstrap_list
 
             ul_error = np.std(ul_list, ddof=1)
 
@@ -168,19 +178,19 @@ class _BootstrapBase(ECPLiBase):
             info = "UL list: " + str(ul_list) + ", absolute error: "
             info += str(ul_error)
             info += " (" + str(round(relative_error * 100, 3)) + "%)"
-            print(info)
+            self._logger.debug(info)
 
             return relative_error
 
         n_bootstrap = 300
-        relative_ul_error = _relative_ul_error(lambda_list_list,
+        relative_ul_error = _relative_ul_error(bootstrap_list_list,
                                                n_bootstrap)
         while(relative_ul_error > self.relative_ul_error_max):
             n_bootstrap *= 2
-            relative_ul_error = _relative_ul_error(lambda_list_list,
+            relative_ul_error = _relative_ul_error(bootstrap_list_list,
                                                    n_bootstrap)
 
-        final_lambda_list = np.array(lambda_list_list)
+        final_bootstrap_list = np.array(bootstrap_list_list)
         """
         The final bootstrap limit is taken from all n_ul
         bootstrap samples. For n_ul = 10,
@@ -188,11 +198,12 @@ class _BootstrapBase(ECPLiBase):
         of 1/sqrt(10) more precise than the
         test bootstrap samples.
         """
-        ul, lambda_list = self._one_ul(n_bootstrap,
-                                       lambda_list=final_lambda_list.ravel())
+        ul, bootstrap_list = self._one_ul(
+                                n_bootstrap,
+                                bootstrap_list=final_bootstrap_list.ravel())
         info = "Final UL: " + str(ul)
-        info += " with bootstrap size: " + str(len(lambda_list))
-        print(info)
+        info += " with bootstrap size: " + str(len(bootstrap_list))
+        self._logger.debug(info)
         return ul
 
 
