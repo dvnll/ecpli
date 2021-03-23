@@ -43,7 +43,6 @@ class _BootstrapBase(ECPLiBase):
         super().__init__(limit_target, data, models, CL)
 
         self.dataset = data
-        self.model = models[0]
         letters = string.ascii_uppercase + string.digits
         random_string = "".join(random.choice(letters) for _ in range(10))
         dataset_copy = self.dataset.copy("dscopy_GE_" + random_string)
@@ -73,7 +72,7 @@ class _BootstrapBase(ECPLiBase):
             n_fit_errors = 0
             while len(bootstrap_list) < n_entries:
                 dataset.counts.data = self.resample()
-                dataset.models = self.model.copy()
+                dataset.models = self.limit_target.model.copy()
                 fit = Fit([dataset])
                 with np.errstate(all="ignore"):
                     try:
@@ -231,7 +230,7 @@ class BestFitParametricBootstrap(_BootstrapBase):
 
         dataset = self.dataset.copy("dscopy_GE_" + random_string)
 
-        dataset.models = self.model.copy()
+        dataset.models = self.limit_target.model.copy()
         fit = Fit([dataset])
         _ = fit.optimize(backend=self.fit_backend)
         self.npred = dataset.npred().data

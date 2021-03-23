@@ -7,10 +7,6 @@ from copy import deepcopy
 import logging
 
 
-logger = logging.getLogger()
-logging.basicConfig(level=logging.INFO)
-
-
 def _mcrab():
     """Crab flux at 1 TeV defined as in the HESS Crab Paper,
        https://arxiv.org/abs/astro-ph/0607333, Table 6
