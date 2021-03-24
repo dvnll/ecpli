@@ -26,3 +26,6 @@ modeling.models.Models), e.g. a profile likelihood limit is derived as:
 method = ecpli.ConstrainedLR(limit_target, dataset, models, CL)
 ul = method.ul
 ```
+
+The frequentist coverage of all provided methods is tested and confirmed 
+at a confidence level of 95%.
