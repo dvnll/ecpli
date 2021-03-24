@@ -27,5 +27,5 @@ method = ecpli.ConstrainedLR(limit_target, dataset, models, CL)
 ul = method.ul
 ```
 
-The frequentist coverage of all provided methods is tested and confirmed 
-at a confidence level of 95%.
+The frequentist coverage of all provided methods is tested for typical
+gamma-ray point sources and confirmed at a confidence level of 95%.
