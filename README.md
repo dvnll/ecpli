@@ -1,4 +1,5 @@
-Derive limits on the energy cutoff of a spectral model in gammapy-0.16.
+Derive limits on the energy cutoff parameter 
+of a spectral model in gammapy-0.16.
 
 Three methods are supported:
 - Profile likelihood
