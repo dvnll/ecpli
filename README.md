@@ -5,13 +5,14 @@ Three methods are supported:
 - Bootstrap
 - Affine invariant Markov chain
 
-Given a gammapy dataset of type gammapy.modeling.Dataset, the target model and 
-variable needs to be defined:
+Given a gammapy dataset (of type gammapy.modeling.Dataset),
+the target model (of type gammapy.modeling.models.SkyModel) 
+and target pameter name needs to be defined:
 
 
 ```
 import ecpli
-limit_target = ecpli.LimitTarget(model=dataset["dataset"].fit_start_model[0],
+limit_target = ecpli.LimitTarget(model=target_model,
                                  parameter_name="lambda_",
                                  parmin=0.,
                                  parmax=1./0.05)
