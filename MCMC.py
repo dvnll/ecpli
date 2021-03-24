@@ -53,8 +53,15 @@ class _EnsembleMCMCBase(ECPLiBase):
         self.n_threads = 1
         self.n_samples = n_samples
 
+        if self.limit_target.parameter_name != "lambda_":
+            info = "Currently only supporting limits on lambda_"
+            raise RuntimeError(info)
+
     @property
     def _lambda_index(self) -> int:
+        """Returns the index of the target parameter in the
+           self.dataset.models.parameters.free_parameters list.
+        """
 
         index_counter = 0
         target_index = None
@@ -72,6 +79,8 @@ class _EnsembleMCMCBase(ECPLiBase):
         return target_index
 
     def _lambda_chain(self) -> np.ndarray:
+        """Returns the list of samples of the target parameter.
+        """
 
         burn_in = self.burn_in
 
@@ -112,6 +121,8 @@ class _EnsembleMCMCBase(ECPLiBase):
         return result
 
     def _initial_samples(self) -> np.ndarray:
+        """Runs the Markov chain initially for self.n_samples.
+        """
 
         dataset = self.dataset
 
@@ -146,7 +157,7 @@ class _EnsembleMCMCBase(ECPLiBase):
         return walker_positions
 
     def autocorrelation(self) -> float:
-        """Estimate the autocorrelation time of the Markov chain.
+        """Estimates the autocorrelation time of the Markov chain.
         """
         tau = None
         walker_positions = self._initial_samples()
@@ -270,7 +281,8 @@ class _EnsembleMCMCBase(ECPLiBase):
         return ndim, p0
 
     def _sample(self, n_walkers: int, n_samples: int) -> np.ndarray:
-
+        """Draws n_samples from the markov chain.
+        """
         self.dataset.parameters.autoscale()
         ndim, p0 = self._walker_init(n_walkers)
 
@@ -296,6 +308,8 @@ class _EnsembleMCMCBase(ECPLiBase):
     def _continue_sampling(self,
                            walker_positions: np.ndarray,
                            n_samples: int) -> np.ndarray:
+        """Continues sampling for another n_samples.
+        """
 
         info = "Continuing to get " + str(n_samples) + " samples"
         self._logger.debug(info)
@@ -378,6 +392,8 @@ class _EnsembleMCMCBase(ECPLiBase):
 
 
 class UniformPriorEnsembleMCMC(_EnsembleMCMCBase):
+    """Ensemble MCMC with uniform priors.
+    """
 
     def __init__(self,
                  limit_target: LimitTarget,
@@ -391,9 +407,9 @@ class UniformPriorEnsembleMCMC(_EnsembleMCMCBase):
                          n_samples, n_burn)
 
         for par in self.dataset.parameters.free_parameters:
-            if par.name == "lambda_":
-                par.min = 0.
-                par.max = 1.
+            if par.name == self.limit_target.parameter_name:
+                par.min = self.limit_target.parmin
+                par.max = self.limit_target.parmax
             elif par.name == "index":
                 par.min = 1.
                 par.max = 4.
@@ -412,6 +428,9 @@ class UniformPriorEnsembleMCMC(_EnsembleMCMCBase):
 
 
 class WeakPriorEnsembleMCMC(_EnsembleMCMCBase):
+    """Ensemble MCMC with gamma distributed priors.
+    """
+
     def __init__(self,
                  limit_target: LimitTarget,
                  data: modeling.Dataset,
@@ -425,9 +444,9 @@ class WeakPriorEnsembleMCMC(_EnsembleMCMCBase):
 
         # Fixing only for the ML fit
         for par in self.dataset.parameters.free_parameters:
-            if par.name == "lambda_":
-                par.min = 0
-                par.max = 1.
+            if par.name == self.limit_target.parameter_name:
+                par.min = self.limit_target.parmin
+                par.max = self.limit_target.parmax
             elif par.name == "index":
                 par.min = 1.
                 par.max = 4.
