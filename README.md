@@ -33,7 +33,7 @@ As a complete example, consider the "3d analysis" notepad
 the official gammapy-0.16 documentation. Let the notepad run. As final cell,
 insert
 
-'''
+```
 import ecpli
 from gammapy.modeling.models import Models
 
@@ -47,7 +47,7 @@ ul = method.ul
 
 print("UL on lambda: " + str(ul))
 print("LL on energy cutoff: " + str(1/ul))
-'''
+```
 
 Other implemented methods are 
 
