@@ -8,7 +8,7 @@ Three methods are supported:
 
 Given a gammapy dataset (of type gammapy.modeling.Dataset),
 the target model (of type gammapy.modeling.models.SkyModel) 
-and target pameter name needs to be defined:
+and target parameter name needs to be defined:
 
 
 ```
@@ -28,9 +28,9 @@ method = ecpli.ConstrainedLR(limit_target, dataset, models, CL)
 ul = method.ul
 ```
 
-As a complete example, consider the "3d analysis" notepad
+As a complete example, consider the "3d analysis" 
 [notepad](https://docs.gammapy.org/0.16/notebooks/analysis_3d.html) from 
-the official gammapy-0.16 documentation. Let the notepad run. As final cell,
+the gammapy-0.16 documentation. Let the notepad run. As final cell,
 insert
 
 ```
