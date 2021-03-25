@@ -31,7 +31,7 @@ ul = method.ul
 As a complete example, consider the "3d analysis" 
 [notepad](https://docs.gammapy.org/0.16/notebooks/analysis_3d.html) from 
 the gammapy-0.16 documentation. Let the notepad run. As final cell,
-insert
+insert:
 
 ```
 import ecpli
