@@ -169,7 +169,7 @@ class LRBase(ECPLiBase):
             info += str(parameter_value) + " -> fitstat: " + str(fitstat)
             self._logger.debug(info)
 
-        dataset = self.data.copy()
+        dataset = self.data
 
         if parameter_value is not None:
             freeze_target_parameter(frozen=True)
