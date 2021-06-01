@@ -6,116 +6,7 @@ from gammapy.datasets import Dataset
 from scipy.optimize import brentq, fsolve
 import scipy.stats as stats
 
-import random
-import string
-
-from typing import List
-
 from ecpli.ECPLiBase import ECPLiBase, LimitTarget
-
-
-class _ProfileLRPool(object):
-    """Helper class to contain the profile likelihood values
-       and their corresponding models.
-
-       Attributes:
-        max_size: Maximal size of the pool. Limited to limit used memory.
-        full: True if the maximum size of the pool is reached.
-        parameter_list: List of parameters for the profile.
-        likelihood_list: List of maximum profile likelihood values.
-
-       Todo:
-        This class is useful to find a good start model for fits and
-        to perform plots of the profile likelihood function. However,
-        it is very memory inefficient. One way to improve it would be
-        to not save the complete list of models but only their parameters.
-    """
-
-    def __init__(self, max_size: int):
-        self._parameter_list: List[float] = []
-        self._likelihood_list: List[float] = []
-        self._model_list: List[Dataset] = []
-        self.max_size: int = max_size
-
-    @property
-    def full(self) -> bool:
-        return (len(self) >= self.max_size)
-
-    def __len__(self) -> int:
-        return len(self._parameter_list)
-
-    def append(self, parameter: float, dataset: Dataset) -> None:
-        """Appends the profiled fit model and the parameter to the pool.
-
-           Args:
-            parameter: Fixed profile parameter.
-            dataset: Optimized dataset for the given parameter.
-        """
-        if parameter in self.parameter_list:
-            return
-
-        self._parameter_list.append(parameter)
-        self._likelihood_list.append(dataset.stat_sum())
-        self._model_list.append(dataset.models)
-
-    @property
-    def _index_list(self) -> List[int]:
-        return np.argsort(self._parameter_list)
-
-    @property
-    def parameter_list(self) -> List[str]:
-        return np.array(self._parameter_list)[self._index_list]
-
-    @property
-    def likelihood_list(self) -> List[float]:
-        return np.array(self._likelihood_list)[self._index_list]
-
-    def ml_model(self) -> modeling.models.Models:
-        """Returns the list of Skymodels which maximize the likelihood
-           function (=minimize the negative loglikeihood) along the
-           available parameter profile.
-        """
-
-        ml_index = np.argmin(self._likelihood_list)
-        ml_model = self._model_list[ml_index]
-        temp_model = []
-        letters = string.ascii_uppercase + string.digits
-        random_string = "".join(random.choice(letters) for _ in range(10))
-
-        for model in ml_model:
-            if isinstance(model, modeling.models.SkyModel):
-                name = model.name.split("_A_")[0]
-                temp_model.append(model.copy(name=name + "_A_" + random_string))
-            else:
-                temp_model.append(model)
-        return temp_model
-
-    def closest_model(self, parameter: float) -> modeling.models.Models:
-        """Returns the list of SkyModels in the pool which is optimized for the
-           closest available profile parameter value in the pool.
-           This is very useful to initialize ML fits for ugly profile
-           likelihood functions.
-
-           Args:
-            parameter: Profile parameter for which the closest model is
-                     requested.
-        """
-
-        best_index = np.argmin(
-                        np.abs(np.array(self._parameter_list) - parameter))
-        closest_model = self._model_list[best_index]
-
-        letters = string.ascii_uppercase + string.digits
-        random_string = "".join(random.choice(letters) for _ in range(10))
-        temp_model = []
-        for model in closest_model:
-            if isinstance(model, modeling.models.SkyModel):
-                name = model.name.split("_A_")[0]
-                temp_model.append(model.copy(name=name + "_A_" + random_string))
-            else:
-                temp_model.append(model)
-        closest_model = temp_model
-        return closest_model
 
 
 class LRBase(ECPLiBase):
@@ -132,53 +23,13 @@ class LRBase(ECPLiBase):
 
     def __init__(self, limit_target: LimitTarget,
                  data: Dataset,
-                 models: modeling.models.Models,
                  CL: float,
-                 fit_config: dict,
-                 max_pool_entries=20):
+                 fit_config: dict):
 
-        super().__init__(limit_target, data, models, CL)
+        super().__init__(limit_target, data, CL)
 
         self._n_fits = 0
         self.fit_config = fit_config
-        self._fitstart_model = models
-
-        def initialize_lr_pool() -> None:
-            """Initializes the profile likelihood lookup pool and fill it.
-            """
-            self._ml_fit_pool = _ProfileLRPool(max_pool_entries)
-
-            for parameter in np.linspace(self.limit_target.parmin,
-                                         self.limit_target.parmax,
-                                         max_pool_entries):
-
-                info = "Filling ML fit pool: Current size: "
-                info += str(len(self._ml_fit_pool)) + "/"
-                info += str(max_pool_entries)
-                self._logger.debug(info)
-
-                self.fit(parameter_value=parameter)
-
-        initialize_lr_pool()
-
-    def _fitstart_model_copy(self) -> modeling.models.Model:
-        """Returns a copy of self._fitstart_model with new random names for the
-           components.
-        """
-        letters = string.ascii_uppercase + string.digits
-
-        random_string = "".join(random.choice(letters) for _ in range(10))
-        model_copy_list: List[modeling.Model] = []
-        for model in self._fitstart_model:
-            if isinstance(model, modeling.models.SkyModel):
-                original_model_name = model.name.split("_A")[0]
-                new_model_name = original_model_name + "_A_" + random_string
-                model_copy = model.copy(name=new_model_name)
-                model_copy_list.append(model_copy)
-            else:
-                model_copy_list.append(model)
-
-        return modeling.models.Models(model_copy_list)
 
     def fit(self, parameter_value=None) -> (float, float):
         """Performs the likelihood optimization.
@@ -194,26 +45,6 @@ class LRBase(ECPLiBase):
 
         self._n_fits += 1
 
-        def initialize_dataset_fit_model() -> None:
-            """Puts the fit-start model in place in the dataset.
-               If the ML fit pool is unfilled, the right fit-start model is
-               a fresh copy of the fit-start model defined in the constructor.
-               If no profile likelihood is requested, the right fit-start model
-               is the ML fit model. If a profile likelihood model is requested,
-               the right fit-start model is the model corresponding to the
-               closest parameter in the ML fit pool.
-            """
-            dataset = self.data
-            if len(self._ml_fit_pool) == 0:
-                dataset.models = self._fitstart_model_copy()
-            else:
-                if parameter_value is None:
-                    dataset.models = self._ml_fit_pool.ml_model()
-                else:
-                    dataset.models = self._ml_fit_pool.closest_model(
-                                            parameter_value)
-            return dataset
-
         def freeze_target_parameter(frozen: bool) -> None:
             """Controls whether the target parameter is frozen in the fit.
 
@@ -221,8 +52,7 @@ class LRBase(ECPLiBase):
                 frozen: If true, the target parameter is frozen in the fit.
             """
             for model in dataset.models:
-                original_model_name = model.name.split("_A")[0]
-                if original_model_name != self.limit_target.model.name:
+                if model.name != self.limit_target.model.name:
                     continue
 
                 for parameter in model.parameters:
@@ -339,7 +169,7 @@ class LRBase(ECPLiBase):
             info += str(parameter_value) + " -> fitstat: " + str(fitstat)
             self._logger.debug(info)
 
-        dataset = initialize_dataset_fit_model()
+        dataset = self.data.copy()
 
         if parameter_value is not None:
             freeze_target_parameter(frozen=True)
@@ -350,13 +180,10 @@ class LRBase(ECPLiBase):
 
         fit_result = fit_dataset()
         best_fit_parameter = _best_fit_parameter(fit_result)
-        if best_fit_parameter is not None and not self._ml_fit_pool.full:
-            self._ml_fit_pool.append(best_fit_parameter, dataset)
 
         fitstat = dataset.stat_sum()
         print_afterfit_debug()
 
-        dataset.models = None  # Clear models after each fit.
         return (best_fit_parameter, fitstat)
 
     def fitstat(self, parameter_value=None) -> float:
@@ -482,16 +309,16 @@ class ConstrainedLR(LRBase):
     def __init__(self,
                  limit_target: LimitTarget,
                  data: Dataset,
-                 models: modeling.models.Models,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
                                                        "strategy": 2},
-                                     "n_repeat_fit_max": 3},
-                 max_pool_entries: int = 20):
+                                     "n_repeat_fit_max": 3}):
 
-        super().__init__(limit_target, data, models,
-                         CL, fit_config, max_pool_entries)
+        super().__init__(limit_target,
+                         data,
+                         CL,
+                         fit_config)
 
     @property
     def critical_value(self) -> float:
@@ -543,16 +370,14 @@ class UnconstrainedLR(LRBase):
     def __init__(self,
                  limit_target: LimitTarget,
                  data: Dataset,
-                 models: modeling.models.Models,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
                                                        "strategy": 2},
-                                     "n_repeat_fit_max": 3},
-                 max_pool_entries: int = 20):
+                                     "n_repeat_fit_max": 3}):
 
-        super().__init__(limit_target, data, models, CL,
-                         fit_config, max_pool_entries,)
+        super().__init__(limit_target, data, CL,
+                         fit_config,)
 
     @property
     def critical_value(self) -> float:

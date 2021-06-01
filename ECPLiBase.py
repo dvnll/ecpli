@@ -1,4 +1,4 @@
-from gammapy.modeling.models import Models, SkyModel
+from gammapy.modeling.models import SkyModel
 from gammapy.datasets import Dataset
 import astropy.units as u
 from abc import ABC, abstractmethod
@@ -73,19 +73,19 @@ class ECPLiBase(ABC):
     def __init__(self,
                  limit_target: LimitTarget,
                  data: Dataset,
-                 models: Models,
                  CL: float):
 
         self.limit_target = limit_target
         self.data = data.copy()
-        self.data.models = None
-        self.models = models
-        self.CL = CL
+        self.models = self.data.models
+
         self._logger = logging.getLogger(__name__)
 
-        if limit_target.model.name not in models.names:
+        self.CL = CL
+
+        if limit_target.model.name not in self.models.names:
             info = "Cannot find model " + limit_target.model.name
-            info += " in model list: " + models.names
+            info += " in model list: " + self.models.names
             raise RuntimeError(info)
 
     @property
