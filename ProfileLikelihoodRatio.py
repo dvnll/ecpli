@@ -16,17 +16,16 @@ class LRBase(ECPLiBase):
        Attributes:
         fit_config: Dictionary which describes the parameters of the
                     likelihood fit optimization.
-        data: Dataset from which a limit is to be derived.
-        model: Likelihood fit optimization start model.
+        dataset: Dataset from which a limit is to be derived.
         n_fits_performed: Number of fits performed in this instance.
     """
 
     def __init__(self, limit_target: LimitTarget,
-                 data: Dataset,
+                 dataset: Dataset,
                  CL: float,
                  fit_config: dict):
 
-        super().__init__(limit_target, data, CL)
+        super().__init__(limit_target, dataset, CL)
 
         self._n_fits = 0
         self.fit_config = fit_config
@@ -39,8 +38,8 @@ class LRBase(ECPLiBase):
                              If None: Keep limit target parameter free in fit.
                              If fixed to a float: Fix limit target parameter to
                              the given value in the likelihood fit.
-           Returns: (best_fit_parameter,
-                     likelihood value at best fit parameter)
+           Returns: (parameter_value,
+                     likelihood value at parameter_value)
         """
 
         self._n_fits += 1
@@ -113,11 +112,12 @@ class LRBase(ECPLiBase):
                         optimize_opts=optimize_opts)
                 if result.success is False:
                     if parameter_value is None:
-                        info = "Cannot fit full model with free target "
+                        info = "Fit failed for full-model with free target "
                         info += "parameter"
                         raise RuntimeError(info)
                     else:
-                        info = "Fit failed for fixed parameter_value="
+                        info = "Fit failed for restricted model with "
+                        info += "fixed parameter_value="
                         info += str(parameter_value)
                         info += " (this is typically no problem)"
                         self._logger.debug(info)
@@ -169,7 +169,7 @@ class LRBase(ECPLiBase):
             info += str(parameter_value) + " -> fitstat: " + str(fitstat)
             self._logger.debug(info)
 
-        dataset = self.data
+        dataset = self.dataset
 
         if parameter_value is not None:
             freeze_target_parameter(frozen=True)
@@ -201,7 +201,8 @@ class LRBase(ECPLiBase):
         return self._n_fits
 
     def ts(self) -> float:
-        """Returns the test statistic for the LR test of a PL against an ECPL.
+        """Returns the test statistic for the LR test of a
+        restricted vs full model.
         """
 
         if hasattr(self, "__ts"):
@@ -308,7 +309,7 @@ class ConstrainedLR(LRBase):
 
     def __init__(self,
                  limit_target: LimitTarget,
-                 data: Dataset,
+                 dataset: Dataset,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
@@ -316,7 +317,7 @@ class ConstrainedLR(LRBase):
                                      "n_repeat_fit_max": 3}):
 
         super().__init__(limit_target,
-                         data,
+                         dataset,
                          CL,
                          fit_config)
 
@@ -336,7 +337,7 @@ class ConstrainedLR(LRBase):
 
     def ml_fit_parameter(self) -> float:
         """Returns the ML fit parameter given the parameter constraint to
-           non-negative.
+           be non-negative.
         """
         if hasattr(self, "_ml_fit_parameter"):
             return self._ml_fit_parameter
@@ -369,14 +370,14 @@ class UnconstrainedLR(LRBase):
 
     def __init__(self,
                  limit_target: LimitTarget,
-                 data: Dataset,
+                 dataset: Dataset,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
                                                        "strategy": 2},
                                      "n_repeat_fit_max": 3}):
 
-        super().__init__(limit_target, data, CL,
+        super().__init__(limit_target, dataset, CL,
                          fit_config,)
 
     @property

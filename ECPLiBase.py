@@ -1,6 +1,5 @@
 from gammapy.modeling.models import SkyModel
 from gammapy.datasets import Dataset
-import astropy.units as u
 from abc import ABC, abstractmethod
 from copy import deepcopy
 import logging
@@ -8,18 +7,6 @@ import logging
 
 logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
-
-
-def _mcrab():
-    """Crab flux at 1 TeV defined as in the HESS Crab Paper,
-       https://arxiv.org/abs/astro-ph/0607333, Table 6
-    """
-
-    _crab_unit = 3.84e-11 * u.Unit("cm-2 s-1 TeV-1")
-    return u.def_unit("mCrab", _crab_unit / 1000.)
-
-
-mCrab = _mcrab()
 
 
 class LimitTarget(object):
@@ -62,30 +49,29 @@ class ECPLiBase(ABC):
        Attributes:
             limit_target: Description of the parameter for which a limit is to
                           be derived.
-            data: Actuall gamma-ray data in form of a gammapy.modeling.Dataset.
+            dataset: Actuall gamma-ray data in form of a
+                  gammapy.modeling.Dataset.
                   This can in practice e.g. be a MapDataset (3d-analysis)
                   or a SpectrumDataset (1d-analysis).
-            models: Collection of models used to describe the data.
             CL: Confidence level on which to work.
             ul: Upper limit on the parameter speficied by limit_target at the
                 confidence level given in the class constructor.
     """
     def __init__(self,
                  limit_target: LimitTarget,
-                 data: Dataset,
+                 dataset: Dataset,
                  CL: float):
 
         self.limit_target = limit_target
-        self.data = data.copy()
-        self.models = self.data.models
+        self.dataset = dataset.copy()
 
         self._logger = logging.getLogger(__name__)
 
         self.CL = CL
 
-        if limit_target.model.name not in self.models.names:
+        if limit_target.model.name not in self.dataset.models.names:
             info = "Cannot find model " + limit_target.model.name
-            info += " in model list: " + self.models.names
+            info += " in model list: " + self.dataset.models.names
             raise RuntimeError(info)
 
     @property
