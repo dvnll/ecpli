@@ -110,6 +110,11 @@ class _BootstrapBase(ECPLiBase):
 
         def _ul_from_bootstrap_list(bootstrap_list: List[float]) -> float:
             """Calculates the upper limit as quantile of the bootstrap_list.
+
+               Note: In the paper, it is claimed that [0, lambda_UL] is an asymptotic confidence interval although the quantile 
+               is calculated as int_{-\infty}^\lambda_UL d\lambda* f(\lambda*), i.e. from -infty instead of from 0. The reason why this is 
+               valid is that the true lambda is always positive. This means that whenever the true lambda is in (-infty, lambda_UL) it must 
+               be in [0, lambda_UL].
             """
 
             bootstrap_list = np.array(bootstrap_list)
@@ -126,7 +131,7 @@ class _BootstrapBase(ECPLiBase):
                 must have zero coverage, so that's a no brainer.
                 Instead, take the smallest positive entry in the
                 bootstrap_list as UL.
-                This is in practice the same as improving the
+                This is in practice the same as increasing the
                 confidence level and will lead to over-coverage with respect
                 to the requested confidence level - which is fine.
                 """
