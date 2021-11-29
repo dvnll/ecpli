@@ -70,8 +70,8 @@ class ECPLiBase(ABC):
         self.CL = CL
 
         if limit_target.model.name not in self.dataset.models.names:
-            info = "Cannot find model " + limit_target.model.name
-            info += " in model list: " + self.dataset.models.names
+            info = "Cannot find model " + str(limit_target.model.name)
+            info += " in model list: " + str(self.dataset.models.names)
             raise RuntimeError(info)
 
     @property

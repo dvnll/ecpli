@@ -39,7 +39,7 @@ class LRBase(ECPLiBase):
                              If fixed to a float: Fix limit target parameter to
                              the given value in the likelihood fit.
            Returns: (parameter_value,
-                     likelihood value at parameter_value)
+                     2 log(likelihood value) modulo constant at parameter_value)
         """
 
         self._n_fits += 1
@@ -169,7 +169,7 @@ class LRBase(ECPLiBase):
             info += str(parameter_value) + " -> fitstat: " + str(fitstat)
             self._logger.debug(info)
 
-        dataset = self.dataset
+        dataset = self.dataset.copy()
 
         if parameter_value is not None:
             freeze_target_parameter(frozen=True)
@@ -200,13 +200,10 @@ class LRBase(ECPLiBase):
     def n_fits_performed(self) -> int:
         return self._n_fits
 
-    def ts(self) -> float:
-        """Returns the test statistic for the LR test of a
+    def cutoff_ts(self) -> float:
+        """Returns the test statistic or significance for the LR test of a
         restricted vs full model.
         """
-
-        if hasattr(self, "__ts"):
-            return getattr(self, "__ts")
 
         ml_fit_parameter = self.ml_fit_parameter()
         fitstat0 = self.fitstat(parameter_value=ml_fit_parameter)
@@ -217,8 +214,57 @@ class LRBase(ECPLiBase):
         self._logger.debug(info)
 
         ts = fitstat_pl - fitstat0
-        setattr(self, "__ts", ts)
         return ts
+            
+    def cutoff_significance(self) -> float:
+        """Returns the significance of the cutoff."""
+
+        ts = self.cutoff_ts()
+        s = np.sqrt(ts)
+        if self.ml_fit_parameter() < 0:
+            s *= -1.
+
+        return s
+
+    def pts(self, threshold_energy: float) -> float:
+        """Returns the PTS value.
+
+            Args:
+             threshold_energy: Threshold value for the PTS,
+                               e.g. 1 PeV for a PeVatron 
+                               in the hadron spectrum or 100 TeV
+                               for the gamma-spectrum.
+        """
+
+        fitstat_threshold = self.fitstat(
+                    parameter_value=1./threshold_energy)
+
+        ml_fit_parameter = self.ml_fit_parameter()
+        fitstat_ml = self.fitstat(ml_fit_parameter)
+
+        info = "fitstat_threshold" + str(fitstat_threshold)
+        info += ", fitstat_ml=" + str(fitstat_ml)
+        self._logger.debug(info)
+
+        pts = fitstat_threshold - fitstat_ml
+        return pts
+ 
+    def pts_significance(self, threshold_energy: float) -> float:
+        """Returns the significance of the PTS.
+
+            Args:
+             threshold_energy: Threshold value for the PTS,
+                               e.g. 1 PeV for a PeVatron 
+                               in the hadron spectrum or 100 TeV
+                               for the gamma-spectrum.
+        """
+
+        pts_significance = np.sqrt(self.pts(threshold_energy))
+
+        delta = 1. / threshold_energy - self.ml_fit_parameter()
+        if delta < 0:
+            pts_significance *= -1
+        return pts_significance
 
     @property
     def _ul(self) -> float:
@@ -237,6 +283,10 @@ class LRBase(ECPLiBase):
         critical_value = self.critical_value
 
         ml_fit_parameter = self.ml_fit_parameter()
+        if ml_fit_parameter > self.limit_target.parmax:
+            info = "LimitTarget parmax must be larger than the "
+            info = "ML fit parameter (" + str(ml_fit_parameter)
+            raise RuntimeError(info)
 
         fitstat0 = self.fitstat(parameter_value=ml_fit_parameter)
 
@@ -267,6 +317,8 @@ class LRBase(ECPLiBase):
                 continue
             except Exception as e:
                 info = "Unexpected exception during brentq solver " + str(e)
+                info += "-- This usually means that the parmax paramter of the "
+                info += "LimitTarget is ill defined."
                 raise RuntimeError(info)
 
         if limit_found is False:
