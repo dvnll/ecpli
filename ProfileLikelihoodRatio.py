@@ -31,6 +31,34 @@ class LRBase(ECPLiBase):
         self._n_fits = 0
         self.fit_config = fit_config
 
+    def _fit_dataset(self, dataset: Dataset) -> modeling.fit.OptimizeResult:
+        """Fits the dataset to its model.
+        Can be monkey-patched for special fit routines.
+
+               Returns: FitResult
+        """
+
+        fit = modeling.Fit([dataset])
+        with np.errstate(all="ignore"):
+            result = fit.run(
+                optimize_opts=self.fit_config["optimize_opts"])
+
+            n_repeat_fit = 1
+            while result.success is False:
+                if n_repeat_fit > self.fit_config["n_repeat_fit_max"]:
+                    break
+                info = "Fit " + str(n_repeat_fit)
+                info += " didn't converge -> Repeating"
+                self._logger.debug(info)
+
+                n_repeat_fit += 1
+                fit = modeling.Fit([dataset])
+                optimize_opts = self.fit_config["optimize_opts"]
+                result = fit.run(
+                    optimize_opts=optimize_opts)
+
+        return result
+
     def fit(self, parameter_value=None) -> (float, float):
         """Performs the likelihood optimization.
 
@@ -88,43 +116,6 @@ class LRBase(ECPLiBase):
                 self._logger.debug(info)
             self._logger.debug("---------------------------------------------")
 
-        def fit_dataset() -> modeling.fit.OptimizeResult:
-            """Fits the dataset to its model.
-
-               Returns: FitResult
-            """
-
-            fit = modeling.Fit([dataset])
-            with np.errstate(all="ignore"):
-                result = fit.run(
-                    optimize_opts=self.fit_config["optimize_opts"])
-
-                n_repeat_fit = 1
-                while result.success is False:
-                    if n_repeat_fit > self.fit_config["n_repeat_fit_max"]:
-                        break
-                    info = "Fit " + str(n_repeat_fit)
-                    info += " didn't converge -> Repeating"
-                    self._logger.debug(info)
-
-                    n_repeat_fit += 1
-                    fit = modeling.Fit([dataset])
-                    optimize_opts = self.fit_config["optimize_opts"]
-                    result = fit.run(
-                        optimize_opts=optimize_opts)
-                if result.success is False:
-                    if parameter_value is None:
-                        info = "Fit failed for full-model with free target "
-                        info += "parameter"
-                        raise RuntimeError(info)
-                    else:
-                        info = "Fit failed for restricted model with "
-                        info += "fixed parameter_value="
-                        info += str(parameter_value)
-                        info += " (this is typically no problem)"
-                        self._logger.debug(info)
-                return result
-
         def _best_fit_parameter(
                     fit_result: modeling.fit.OptimizeResult) -> float:
             """Extracts the best fit target parameter out of the fit result.
@@ -180,7 +171,7 @@ class LRBase(ECPLiBase):
 
         show_fit_dataset_debug_information()
 
-        fit_result = fit_dataset()
+        fit_result = self._fit_dataset(dataset)
         best_fit_parameter = _best_fit_parameter(fit_result)
 
         fitstat = dataset.stat_sum()
@@ -216,7 +207,7 @@ class LRBase(ECPLiBase):
         self._logger.debug(info)
 
         ts = fitstat_pl - fitstat0
-        return ts
+        return np.max([0, ts])
 
     def cutoff_significance(self) -> float:
         """Returns the significance of the cutoff."""
@@ -250,7 +241,7 @@ class LRBase(ECPLiBase):
         self._logger.debug(info)
 
         pts = fitstat_threshold - fitstat_ml
-        return pts
+        return np.max([pts, 0])
 
     def pts_significance(self, threshold_energy: u.Quantity) -> float:
         """Returns the significance of the PTS.
@@ -263,7 +254,8 @@ class LRBase(ECPLiBase):
                                for the gamma-spectrum.
         """
 
-        pts_significance = np.sqrt(self.pts(threshold_energy))
+        pts = self.pts(threshold_energy)
+        pts_significance = np.sqrt(pts)
 
         punit = self.limit_target.parameter_unit()
         threshold_energy = threshold_energy.to(1 / punit)
