@@ -12,12 +12,12 @@ Clone the gammapy dataset:
 ```
 git clone https://github.com/gammapy/gammapy-data
 ```
-and set the GAMMAPY_DATA environment variable, e.g.
+and set the GAMMAPY_DATA environment variable, e.g.:
 ```
 export GAMMAPY_DATA=$PWD/gammapy-data
 ```
 
-For a small test case, check out the [gammapy 3d-analysis notepad](https://docs.gammapy.org/0.18/_static/notebooks/analysis_3d.ipynb)
+For a small test case, check out the [gammapy 3d-analysis notepad](https://docs.gammapy.org/0.18/_static/notebooks/analysis_3d.ipynb).
 
 At the bottom of the notepad, add the following cells:
 
