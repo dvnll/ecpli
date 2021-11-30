@@ -211,7 +211,6 @@ class LRBase(ECPLiBase):
 
     def cutoff_significance(self) -> float:
         """Returns the significance of the cutoff."""
-
         ts = self.cutoff_ts()
         s = np.sqrt(ts)
         if self.ml_fit_parameter() < 0:
