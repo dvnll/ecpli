@@ -1,4 +1,4 @@
-This is an ecpli branch for gammapy-0.18.2.
+This is an ecpli branch for gammapy-0.18.2. Note that affine invariant Markov chain and Bootstrap methods are currently only implemented in the ecpli branch for gammapy-0.16.
 
 Installation
 
@@ -56,6 +56,6 @@ print("LL on energy cutoff: " + str(1/ul))
 print("TS for cutoff: " + str(method.cutoff_ts()))
 print("Significance of cutoff: " + str(method.cutoff_significance()))
 
-print("PTS for 100 TeV gamma PeVatron: " + str(method.pts(threshold_energy=100.)))
-print("PTS significance for 100 TeV gamma PeVatron: " + str(method.pts_significance(threshold_energy=100.)))
+print("PTS for 100 TeV gamma PeVatron: " + str(method.pts(threshold_energy=100. * u.TeV)))
+print("PTS significance for 100 TeV gamma PeVatron: " + str(method.pts_significance(threshold_energy=100. * u.TeV)))
 ```

@@ -5,6 +5,7 @@ from gammapy.datasets import Dataset
 
 from scipy.optimize import brentq, fsolve
 import scipy.stats as stats
+import astropy.units as u
 
 from ecpli.ECPLiBase import ECPLiBase, LimitTarget
 
@@ -39,7 +40,8 @@ class LRBase(ECPLiBase):
                              If fixed to a float: Fix limit target parameter to
                              the given value in the likelihood fit.
            Returns: (parameter_value,
-                     2 log(likelihood value) modulo constant at parameter_value)
+                     2 log(likelihood value) modulo constant
+                     at parameter_value)
         """
 
         self._n_fits += 1
@@ -215,7 +217,7 @@ class LRBase(ECPLiBase):
 
         ts = fitstat_pl - fitstat0
         return ts
-            
+
     def cutoff_significance(self) -> float:
         """Returns the significance of the cutoff."""
 
@@ -226,18 +228,19 @@ class LRBase(ECPLiBase):
 
         return s
 
-    def pts(self, threshold_energy: float) -> float:
+    def pts(self, threshold_energy: u.Quantity) -> float:
         """Returns the PTS value.
 
             Args:
              threshold_energy: Threshold value for the PTS,
-                               e.g. 1 PeV for a PeVatron 
+                               e.g. 1 PeV for a PeVatron
                                in the hadron spectrum or 100 TeV
                                for the gamma-spectrum.
         """
-
+        punit = self.limit_target.parameter_unit()
+        threshold_energy = threshold_energy.to(1 / punit)
         fitstat_threshold = self.fitstat(
-                    parameter_value=1./threshold_energy)
+                    parameter_value=1./threshold_energy.value)
 
         ml_fit_parameter = self.ml_fit_parameter()
         fitstat_ml = self.fitstat(ml_fit_parameter)
@@ -248,20 +251,23 @@ class LRBase(ECPLiBase):
 
         pts = fitstat_threshold - fitstat_ml
         return pts
- 
-    def pts_significance(self, threshold_energy: float) -> float:
+
+    def pts_significance(self, threshold_energy: u.Quantity) -> float:
         """Returns the significance of the PTS.
 
             Args:
              threshold_energy: Threshold value for the PTS,
-                               e.g. 1 PeV for a PeVatron 
-                               in the hadron spectrum or 100 TeV
+                               e.g. 1 u.PeV for a PeVatron
+                               in the hadron spectrum or
+                               100 u.TeV
                                for the gamma-spectrum.
         """
 
         pts_significance = np.sqrt(self.pts(threshold_energy))
 
-        delta = 1. / threshold_energy - self.ml_fit_parameter()
+        punit = self.limit_target.parameter_unit()
+        threshold_energy = threshold_energy.to(1 / punit)
+        delta = 1. / threshold_energy.value - self.ml_fit_parameter()
         if delta < 0:
             pts_significance *= -1
         return pts_significance
@@ -317,7 +323,8 @@ class LRBase(ECPLiBase):
                 continue
             except Exception as e:
                 info = "Unexpected exception during brentq solver " + str(e)
-                info += "-- This usually means that the parmax paramter of the "
+                info += "-- This usually means that the "
+                info += "parmax paramter of the "
                 info += "LimitTarget is ill defined."
                 raise RuntimeError(info)
 

@@ -40,6 +40,15 @@ class LimitTarget(object):
         info += ", parameter: " + str(self.parameter_name)
         return info
 
+    def parameter_unit(self):
+        """Returns the unit of the target parameter"""
+
+        for parameter in self.model.parameters:
+            pname = parameter.name
+            if pname == self.parameter_name:
+                return parameter.unit
+        return None
+
 
 class ECPLiBase(ABC):
     """All methods which implement a method to derive an upper limit on the
