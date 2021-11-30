@@ -1,10 +1,10 @@
 This is an ecpli branch for gammapy-0.18.2. Note that affine invariant Markov chain and Bootstrap methods are currently only implemented in the ecpli branch for gammapy-0.16.
 
-Installation
+# Installation
 
-1) If not already installed: Install [gammapy-0.18.2](https://docs.gammapy.org/0.18/install/index.html)
+## 1) If not already installed: Install [gammapy-0.18.2](https://docs.gammapy.org/0.18/install/index.html)
 
-2) Clone the ecpli branch:
+## 2) Clone the ecpli branch:
 ```
 git clone -b v0.18.2 https://github.com/residualsilence/ecpli.git
 ```
@@ -17,11 +17,12 @@ and set the GAMMAPY_DATA environment variable, e.g.:
 export GAMMAPY_DATA=$PWD/gammapy-data
 ```
 
+# Test case
 For a small test case, check out the [gammapy 3d-analysis notepad](https://docs.gammapy.org/0.18/_static/notebooks/analysis_3d.ipynb).
 
 At the bottom of the notepad, add the following cells:
 
-1) Copy the initial models:
+## 1) Copy the initial models:
 ```
 models_joint2 = Models()
 
@@ -33,7 +34,7 @@ for dataset in analysis_joint.datasets:
     models_joint2.append(bkg_model)
 ```
 
-2) Run a few ecpli functions:
+## 2) Run a few ecpli functions:
 
 ```
 import ecpli
@@ -60,7 +61,9 @@ print("PTS for 100 TeV gamma PeVatron: " + str(method.pts(threshold_energy=100. 
 print("PTS significance for 100 TeV gamma PeVatron: " + str(method.pts_significance(threshold_energy=100. * u.TeV)))
 ```
 
-3) ecpli methods can also be applied to flux point data:
+# ASCI data
+
+## flux point data in an ASCI table
 
 ```
 from astropy import units as u
@@ -135,9 +138,11 @@ print("Significance of cutoff: " + str(method.cutoff_significance()))
 
 print("PTS for 100 TeV gamma PeVatron: " + str(method.pts(threshold_energy=100. * u.TeV)))
 print("PTS significance for 100 TeV gamma PeVatron: " + str(method.pts_significance(threshold_energy=100. * u.TeV)))
+```
 
-# Table with simulated true PeVatron flux points:
+## ASCI Table with simulated true PeVatron flux points
 
+```
 table = Table()
 pwl = PowerLawSpectralModel()
 e_ref = np.logspace(0, 2.5, 10) * u.TeV
