@@ -259,6 +259,7 @@ class LRBase(ECPLiBase):
         punit = self.limit_target.parameter_unit()
         threshold_energy = threshold_energy.to(1 / punit)
         delta = 1. / threshold_energy.value - self.ml_fit_parameter()
+        
         if delta < 0:
             pts_significance *= -1
         return pts_significance
