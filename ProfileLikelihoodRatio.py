@@ -105,9 +105,10 @@ class LRBase(ECPLiBase):
                 info += "value in the following datasets"
             self._logger.debug(info)
             self._logger.debug(datasets)
-            if hasattr(datasets, "background_model"):
-                self._logger.debug("Background model:")
-                self._logger.debug(datasets.background_model)
+            for dataset in datasets:
+                if hasattr(dataset, "background_model"):
+                    self._logger.debug(f"Background model of dataset {dataset.name}:")
+                    self._logger.debug(datasets.background_model)
 
             self._logger.debug("Free parameters:")
             for par in datasets.models.parameters.free_parameters:
