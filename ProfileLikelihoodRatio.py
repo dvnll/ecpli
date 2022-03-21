@@ -1,7 +1,7 @@
 import numpy as np
 
 import gammapy.modeling as modeling
-from gammapy.datasets import Dataset
+from gammapy.datasets import Datasets
 
 from scipy.optimize import brentq, fsolve
 import scipy.stats as stats
@@ -17,28 +17,28 @@ class LRBase(ECPLiBase):
        Attributes:
         fit_config: Dictionary which describes the parameters of the
                     likelihood fit optimization.
-        dataset: Dataset from which a limit is to be derived.
+        datasets: Datasets from which a limit is to be derived.
         n_fits_performed: Number of fits performed in this instance.
     """
 
     def __init__(self, limit_target: LimitTarget,
-                 dataset: Dataset,
+                 datasets: Datasets,
                  CL: float,
                  fit_config: dict):
 
-        super().__init__(limit_target, dataset, CL)
+        super().__init__(limit_target, datasets, CL)
 
         self._n_fits = 0
         self.fit_config = fit_config
 
-    def _fit_dataset(self, dataset: Dataset) -> modeling.fit.OptimizeResult:
-        """Fits the dataset to its model.
+    def _fit_datasets(self, datasets: Datasets) -> modeling.fit.OptimizeResult:
+        """Fits the datasets to its model.
         Can be monkey-patched for special fit routines.
 
                Returns: FitResult
         """
 
-        fit = modeling.Fit([dataset])
+        fit = modeling.Fit(datasets)
         with np.errstate(all="ignore"):
             result = fit.run(
                 optimize_opts=self.fit_config["optimize_opts"])
@@ -52,7 +52,7 @@ class LRBase(ECPLiBase):
                 self._logger.debug(info)
 
                 n_repeat_fit += 1
-                fit = modeling.Fit([dataset])
+                fit = modeling.Fit(datasets)
                 optimize_opts = self.fit_config["optimize_opts"]
                 result = fit.run(
                     optimize_opts=optimize_opts)
@@ -80,7 +80,7 @@ class LRBase(ECPLiBase):
             Args:
                 frozen: If true, the target parameter is frozen in the fit.
             """
-            for model in dataset.models:
+            for model in datasets.models:
                 if model.name != self.limit_target.model.name:
                     continue
 
@@ -93,24 +93,24 @@ class LRBase(ECPLiBase):
                             parameter.frozen = False
                         break
 
-        def show_fit_dataset_debug_information() -> None:
+        def show_fit_datasets_debug_information() -> None:
             """Prints debug information if in corresponding log-level.
             """
             self._logger.debug("---------------------------------------------")
-            self._logger.debug("Fit input dataset:")
+            self._logger.debug("Fit input datasets:")
             info = "parameter value input: " + str(parameter_value)
             if parameter_value is not None:
                 info += "Target parameter " + self.limit_target.parameter_name
                 info += ": -> should be frozen to this "
-                info += "value in the following dataset"
+                info += "value in the following datasets"
             self._logger.debug(info)
-            self._logger.debug(dataset)
-            if hasattr(dataset, "background_model"):
+            self._logger.debug(datasets)
+            if hasattr(datasets, "background_model"):
                 self._logger.debug("Background model:")
-                self._logger.debug(dataset.background_model)
+                self._logger.debug(datasets.background_model)
 
             self._logger.debug("Free parameters:")
-            for par in dataset.models.parameters.free_parameters:
+            for par in datasets.models.parameters.free_parameters:
                 info = par.name + ": value: " + str(par.value)
                 info += ", min: " + str(par.min) + ", max: " + str(par.max)
                 self._logger.debug(info)
@@ -120,7 +120,7 @@ class LRBase(ECPLiBase):
                     fit_result: modeling.fit.OptimizeResult) -> float:
             """Extracts the best fit target parameter out of the fit result.
                Args:
-                fit_result: Return value of fit_dataset()
+                fit_result: Return value of fit_datasets()
                Returns: Best fitting parameter
             """
 
@@ -135,7 +135,7 @@ class LRBase(ECPLiBase):
                     self._logger.debug(str(name) + ": " + str(value))
                 self._logger.debug("**++++++++++++++++++++++++++++++++++++**")
 
-                for model in dataset.models:
+                for model in datasets.models:
                     if self.limit_target.model.name in model.name:
                         for parameter in model.parameters:
                             pname = parameter.name
@@ -146,35 +146,35 @@ class LRBase(ECPLiBase):
             return best_fit_parameter
 
         def print_afterfit_debug() -> None:
-            """Prints debug information for the dataset state after the fit
+            """Prints debug information for the datasets state after the fit
                if in respective log-level.
             """
 
             self._logger.debug("+++++++++++++++++++++++++++++++++++++++++++++")
-            self._logger.debug("Fit output dataset:")
-            self._logger.debug(dataset)
-            if hasattr(dataset, "background_model"):
+            self._logger.debug("Fit output datasets:")
+            self._logger.debug(datasets)
+            if hasattr(datasets, "background_model"):
                 self._logger.debug("Background model:")
-                self._logger.debug(dataset.background_model)
+                self._logger.debug(datasets.background_model)
             self._logger.debug("---------------------------------------------")
 
             info = str(self._n_fits) + ": Fit result for input parameter="
             info += str(parameter_value) + " -> fitstat: " + str(fitstat)
             self._logger.debug(info)
 
-        dataset = self.dataset.copy()
+        datasets = self.datasets.copy()
 
         if parameter_value is not None:
             freeze_target_parameter(frozen=True)
         else:
             freeze_target_parameter(frozen=False)
 
-        show_fit_dataset_debug_information()
+        show_fit_datasets_debug_information()
 
-        fit_result = self._fit_dataset(dataset)
+        fit_result = self._fit_datasets(datasets)
         best_fit_parameter = _best_fit_parameter(fit_result)
 
-        fitstat = dataset.stat_sum()
+        fitstat = datasets.stat_sum()
         print_afterfit_debug()
 
         return (best_fit_parameter, fitstat)
@@ -360,7 +360,7 @@ class ConstrainedLR(LRBase):
 
     def __init__(self,
                  limit_target: LimitTarget,
-                 dataset: Dataset,
+                 datasets: Datasets,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
@@ -368,7 +368,7 @@ class ConstrainedLR(LRBase):
                                      "n_repeat_fit_max": 3}):
 
         super().__init__(limit_target,
-                         dataset,
+                         datasets,
                          CL,
                          fit_config)
 
@@ -421,14 +421,14 @@ class UnconstrainedLR(LRBase):
 
     def __init__(self,
                  limit_target: LimitTarget,
-                 dataset: Dataset,
+                 datasets: Datasets,
                  CL: float,
                  fit_config: dict = {"optimize_opts": {"print_level": 0,
                                                        "tol": 3.0,
                                                        "strategy": 2},
                                      "n_repeat_fit_max": 3}):
 
-        super().__init__(limit_target, dataset, CL,
+        super().__init__(limit_target, datasets, CL,
                          fit_config,)
 
     @property

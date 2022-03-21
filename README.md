@@ -180,7 +180,7 @@ limit_target = ecpli.LimitTarget(model=fmodel,
 
 
 method = ecpli.ConstrainedLR(limit_target=limit_target,
-                             dataset=dataset,
+                             dataset=analysis_joint.datasets,
                              CL=0.95)
 
 ul = method.ul
