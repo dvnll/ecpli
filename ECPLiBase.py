@@ -58,10 +58,8 @@ class ECPLiBase(ABC):
        Attributes:
             limit_target: Description of the parameter for which a limit is to
                           be derived.
-            datasets: Actuall gamma-ray data in form of a
+            datasets: Actual gamma-ray data in form of a
                   gammapy.modeling.Datasets.
-                  This can in practice e.g. be a MapDatasets (3d-analysis)
-                  or a SpectrumDatasets (1d-analysis).
             CL: Confidence level on which to work.
             ul: Upper limit on the parameter speficied by limit_target at the
                 confidence level given in the class constructor.
