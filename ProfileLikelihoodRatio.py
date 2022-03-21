@@ -108,7 +108,7 @@ class LRBase(ECPLiBase):
             for dataset in datasets:
                 if hasattr(dataset, "background_model"):
                     self._logger.debug(f"Background model of dataset {dataset.name}:")
-                    self._logger.debug(datasets.background_model)
+                    self._logger.debug(dataset.background_model)
 
             self._logger.debug("Free parameters:")
             for par in datasets.models.parameters.free_parameters:
@@ -154,9 +154,10 @@ class LRBase(ECPLiBase):
             self._logger.debug("+++++++++++++++++++++++++++++++++++++++++++++")
             self._logger.debug("Fit output datasets:")
             self._logger.debug(datasets)
-            if hasattr(datasets, "background_model"):
-                self._logger.debug("Background model:")
-                self._logger.debug(datasets.background_model)
+            for dataset in datasets:
+                if hasattr(dataset, "background_model"):
+                    self._logger.debug(f"Background model of dataset {dataset.name}:")
+                    self._logger.debug(dataset.background_model)
             self._logger.debug("---------------------------------------------")
 
             info = str(self._n_fits) + ": Fit result for input parameter="
