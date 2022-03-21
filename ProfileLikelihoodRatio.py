@@ -165,6 +165,7 @@ class LRBase(ECPLiBase):
             self._logger.debug(info)
 
         datasets = self.datasets.copy()
+        datasets.models = datasets.models #reset the lru_cache broken by copy
 
         if parameter_value is not None:
             freeze_target_parameter(frozen=True)
