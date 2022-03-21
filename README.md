@@ -46,7 +46,7 @@ limit_target = ecpli.LimitTarget(model=models_joint2[0],
 
 
 method = ecpli.ConstrainedLR(limit_target=limit_target,
-                             dataset=dataset,
+                             datasets=analysis_joint.datasets,
                              CL=0.95)
 
 ul = method.ul
@@ -116,7 +116,7 @@ f_spectral_model = ExpCutoffPowerLawSpectralModel(
 fmodel = SkyModel(spectral_model=f_spectral_model, name="ecpl_model")
 fmodel.parameters["alpha"].frozen = True
 print(fmodel)
-dataset = FluxPointsDataset(fmodel, flux_points)
+datasets = Datasets([FluxPointsDataset(fmodel, flux_points)])
 
 limit_target = ecpli.LimitTarget(model=fmodel,
                                  parameter_name="lambda_",
@@ -125,7 +125,7 @@ limit_target = ecpli.LimitTarget(model=fmodel,
 
 
 method = ecpli.ConstrainedLR(limit_target=limit_target,
-                             dataset=dataset,
+                             datasets=datasets,
                              CL=0.95)
 
 ul = method.ul
@@ -171,7 +171,7 @@ f_spectral_model = ExpCutoffPowerLawSpectralModel(
 
 fmodel = SkyModel(spectral_model=f_spectral_model, name="ecpl_model")
 fmodel.parameters["alpha"].frozen = True
-dataset = FluxPointsDataset(fmodel, flux_points)
+datasets = Datasets([FluxPointsDataset(fmodel, flux_points)])
 
 limit_target = ecpli.LimitTarget(model=fmodel,
                                  parameter_name="lambda_",
@@ -180,7 +180,7 @@ limit_target = ecpli.LimitTarget(model=fmodel,
 
 
 method = ecpli.ConstrainedLR(limit_target=limit_target,
-                             dataset=dataset,
+                             datasets=datasets,
                              CL=0.95)
 
 ul = method.ul

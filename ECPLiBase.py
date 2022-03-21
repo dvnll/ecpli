@@ -1,5 +1,5 @@
 from gammapy.modeling.models import SkyModel
-from gammapy.datasets import Dataset
+from gammapy.datasets import Datasets
 from abc import ABC, abstractmethod
 from copy import deepcopy
 import logging
@@ -58,29 +58,29 @@ class ECPLiBase(ABC):
        Attributes:
             limit_target: Description of the parameter for which a limit is to
                           be derived.
-            dataset: Actuall gamma-ray data in form of a
-                  gammapy.modeling.Dataset.
-                  This can in practice e.g. be a MapDataset (3d-analysis)
-                  or a SpectrumDataset (1d-analysis).
+            datasets: Actuall gamma-ray data in form of a
+                  gammapy.modeling.Datasets.
+                  This can in practice e.g. be a MapDatasets (3d-analysis)
+                  or a SpectrumDatasets (1d-analysis).
             CL: Confidence level on which to work.
             ul: Upper limit on the parameter speficied by limit_target at the
                 confidence level given in the class constructor.
     """
     def __init__(self,
                  limit_target: LimitTarget,
-                 dataset: Dataset,
+                 datasets: Datasets,
                  CL: float):
 
         self.limit_target = limit_target
-        self.dataset = dataset.copy()
+        self.datasets = datasets.copy()
 
         self._logger = logging.getLogger(__name__)
 
         self.CL = CL
 
-        if limit_target.model.name not in self.dataset.models.names:
+        if limit_target.model.name not in self.datasets.models.names:
             info = "Cannot find model " + str(limit_target.model.name)
-            info += " in model list: " + str(self.dataset.models.names)
+            info += " in model list: " + str(self.datasets.models.names)
             raise RuntimeError(info)
 
     @property
